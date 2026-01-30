@@ -1,0 +1,68 @@
+version: "3.8"
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  mongodb:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  socket-gateway:
+    build: ./services/socket-gateway
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    depends_on:
+      - rabbitmq
+      - redis
+
+  message-worker:
+    build: ./services/message-worker
+    env_file:
+      - .env
+    depends_on:
+      - rabbitmq
+      - redis
+
+  api-service:
+    build: ./services/api-service
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    depends_on:
+      - redis
+
+  auth-service:
+    build: ./services/auth-service
+    ports:
+      - "3002:3002"
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - mongodb
+
+  frontend:
+    build: ./services/frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - api-service
+      - socket-gateway
+
+volumes:
+  mongodb_data:

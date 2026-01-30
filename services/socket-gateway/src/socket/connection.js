@@ -1,19 +1,38 @@
-
-
-
 const redis = require("../cache/redis");
 const { publishMessage } = require("../queue/publisher");
 
 module.exports = (io) => {
   io.on("connection", async (socket) => {
-    const userId = socket.id; // placeholder (later real user ID)
-    console.log(`Client connected: ${userId}`);
+    console.log(`Socket connected: ${socket.id}`);
 
-    await redis.set(`presence:${userId}`, "online", "EX", 60);
+    socket.on("register", async ({ userId }) => {
+      await redis.set(`user:${userId}`, socket.id);
+      await redis.set(`presence:${userId}`, "online", "EX", 60);
+
+      console.log(`REGISTERED ${userId} -> ${socket.id}`);
+    });
+
+    socket.on("private_message", async ({ from, to, message }) => {
+      console.log(`PRIVATE MESSAGE ${from} -> ${to}: ${message}`);
+
+      const targetSocketId = await redis.get(`user:${to}`);
+
+      if (targetSocketId) {
+        io.to(targetSocketId).emit("private_message", {
+          from,
+          message,
+          timestamp: Date.now(),
+        });
+      } else {
+        console.log(`User ${to} is offline`);
+        // later: store in DB / queue
+      }
+    });
+
 
     socket.on("send_message", async (data) => {
       await publishMessage({
-        sender: userId,
+        sender: data.sender || socket.id,
         roomId: data.roomId || "global",
         message: data.message,
         timestamp: Date.now(),
@@ -21,8 +40,11 @@ module.exports = (io) => {
     });
 
     socket.on("disconnect", async () => {
-      console.log(`Client disconnected: ${userId}`);
-      await redis.del(`presence:${userId}`);
+      console.log(`Socket disconnected: ${socket.id}`);
+
+      await redis.del(`presence:${socket.id}`);
     });
   });
 };
+
+

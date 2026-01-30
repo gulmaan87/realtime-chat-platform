@@ -1,0 +1,29 @@
+stages:
+  - build
+
+variables:
+  DOCKER_DRIVER: overlay2
+
+services:
+  - docker:dind
+
+before_script:
+  - docker info
+
+build_socket_gateway:
+  stage: build
+  image: docker:24
+  script:
+    - docker build -t socket-gateway ./services/socket-gateway
+
+build_message_worker:
+  stage: build
+  image: docker:24
+  script:
+    - docker build -t message-worker ./services/message-worker
+
+build_api_service:
+  stage: build
+  image: docker:24
+  script:
+    - docker build -t api-service ./services/api-service
