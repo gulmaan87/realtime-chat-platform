@@ -1,11 +1,16 @@
 const Contact = require("../models/contact.model");
-const User = require("../models/user.model");
+const User = require("../models/User");
 
 exports.addContact = async (req, res) => {
-  const ownerUserId = req.userId;
+  const ownerUserId = req.userId?.userId || req.userId;
   const { username } = req.body;
-
-  const user = await User.findOne({ username });
+  
+  if (!username?.trim() === "") {
+    return res.status(400).json({ message: "Username is required" });
+  }
+  const user = await User.findOne({ username: username.trim() });
+  
+  
   if (!user) {
     return res.status(404).json({ message: "User not found" });
   }
@@ -30,3 +35,14 @@ exports.addContact = async (req, res) => {
 
   res.json({ message: "Contact added" });
 };
+
+
+exports.getContacts = async (req, res) => {
+    const contacts = await Contact.find({ ownerUserId: req.userId })
+      .populate("contactUserId", "username profilePicUrl status");
+  
+    res.json(
+      contacts.map(c => c.contactUserId)
+    );
+  };
+  

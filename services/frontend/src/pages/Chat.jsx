@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { socket } from "../services/socket";
 import { fetchChatHistory } from "../services/api";
 import ContactList from "../components/ContactList";
-import { Send, MoreVertical, Phone, Video, Search, CheckCheck, LogOut } from "lucide-react";
+import { Send, MoreVertical, Phone, Video, Search, CheckCheck, LogOut, Settings } from "lucide-react";
 import "../App.css";
 
 export default function Chat({ activeChatUser, setActiveChatUser }) {
@@ -220,8 +220,8 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             <button className="icon-button">
               <Search size={20} />
             </button>
-            <button className="icon-button">
-              <MoreVertical size={20} />
+            <button className="icon-button" onClick={() => window.location.href = "/settings"}>
+              <Settings size={20} />
             </button>
           </div>
         </div>

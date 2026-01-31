@@ -1,10 +1,19 @@
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, "..", "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log("Created uploads directory:", uploadsDir);
+}
 
 // 1️⃣ Configure where and how files are stored
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/");
+    // Use absolute path to ensure directory exists
+    cb(null, uploadsDir);
   },
 
   filename: (req, file, cb) => {
@@ -28,7 +37,7 @@ const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 2 * 1024 * 1024 // 2MB max
+    fileSize: 9 * 1024 * 1024 // 9MB max
   }
 });
 

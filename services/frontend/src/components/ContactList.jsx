@@ -1,20 +1,28 @@
 import { useEffect, useState } from "react";
+import{UserPlus} from "lucide-react";
+
+const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "http://localhost:3002";
 
 export default function ContactList({ onSelect, activeChatUser }) {
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showAddFriend, setShowAddFriend] = useState(false);
+  const [addUsername, setAddUsername] = useState("");
+  const [addError, setAddError] = useState("");
+  const [addLoading, setAddLoading] = useState(false);
+  const [addSuccess, setAddSuccess] = useState(false);
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
 
-  useEffect(() => {
+  function fetchContacts() {
+    setLoading(true);
     // Fetch all users (you can replace this with a contacts endpoint later)
-    fetch("http://localhost:3002/auth/users", {
+    fetch(`${AUTH_API_URL}/auth/users`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`
       }
     })
       .then(res => {
         if (!res.ok) {
-          // Fallback: return empty array if endpoint doesn't exist
           return [];
         }
         return res.json();
@@ -42,7 +50,48 @@ export default function ContactList({ onSelect, activeChatUser }) {
         setContacts([]);
       })
       .finally(() => setLoading(false));
+    }
+    useEffect(() => {
+      fetchContacts();
   }, []);
+
+  async function handleAddFriend(e) {
+    e.preventDefault();
+    setAddError("");
+    setAddSuccess("");
+    const username = addUsername.trim();
+    if (!username) {
+      setAddError("Enter a username");
+      return;
+    }
+    setAddLoading(true);
+    try {
+      const res = await fetch(`${AUTH_API_URL}/contacts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`
+        },
+        body: JSON.stringify({ username })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAddError(data.message || "Could not add friend");
+        setAddLoading(false);
+        return;
+      }
+      setAddSuccess("Friend added!");
+      setAddUsername("");
+      fetchContacts();
+      setTimeout(() => {
+        setAddSuccess("");
+        setShowAddFriend(false);
+      }, 1500);
+    } catch (err) {
+      setAddError("Network error. Try again.");
+    }
+    setAddLoading(false);
+  }
 
   function getInitials(name) {
     if (!name) return "?";
@@ -69,6 +118,15 @@ export default function ContactList({ onSelect, activeChatUser }) {
       <div className="contact-list">
         <div className="contact-list-header">
           <h3>Contacts</h3>
+          <button
+            type="button"
+            className="contact-add-friend-btn"
+            onClick={() => setShowAddFriend(true)}
+            title="Add friend"
+          >
+            <UserPlus size={20} />
+            <span>Add friend</span>
+          </button>
         </div>
         <div className="contact-loading">Loading contacts...</div>
       </div>
@@ -79,7 +137,54 @@ export default function ContactList({ onSelect, activeChatUser }) {
     <div className="contact-list">
       <div className="contact-list-header">
         <h3>Contacts</h3>
+        <button
+          type="button"
+          className="contact-add-friend-btn"
+          onClick={() => setShowAddFriend(true)}
+          title="Add friend"
+        >
+          <UserPlus size={20} />
+          <span>Add friend</span>
+        </button>
       </div>
+
+      {showAddFriend && (
+        <div className="add-friend-panel">
+          <div className="add-friend-header">
+            <h4>Add friend</h4>
+            <button
+              type="button"
+              className="add-friend-close"
+              onClick={() => {
+                setShowAddFriend(false);
+                setAddUsername("");
+                setAddError("");
+                setAddSuccess("");
+              }}
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+          <form onSubmit={handleAddFriend} className="add-friend-form">
+            <input
+              type="text"
+              placeholder="Enter username"
+              value={addUsername}
+              onChange={(e) => setAddUsername(e.target.value)}
+              className="add-friend-input"
+              autoFocus
+              disabled={addLoading}
+            />
+            {addError && <div className="add-friend-error">{addError}</div>}
+            {addSuccess && <div className="add-friend-success">{addSuccess}</div>}
+            <button type="submit" className="add-friend-submit" disabled={addLoading}>
+              {addLoading ? "Adding…" : "Add"}
+            </button>
+          </form>
+        </div>
+      )}
+      
       <div className="contact-items">
         {contacts.length === 0 ? (
           <div className="contact-empty">No contacts found</div>
