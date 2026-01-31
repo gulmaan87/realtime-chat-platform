@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Chat from "./pages/Chat";
+import ContactList from "./components/ContactList";
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState(() => {
@@ -12,6 +13,7 @@ export default function App() {
   });
 
   const token = localStorage.getItem("token");
+  const [activeChatUser, setActiveChatUser] = useState(null);
 
   useEffect(() => {
     // Handle browser navigation
@@ -19,7 +21,9 @@ export default function App() {
       const path = window.location.pathname;
       if (path === "/login") setCurrentPage("login");
       else if (path === "/signup") setCurrentPage("signup");
+      
       else setCurrentPage("chat");
+
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -46,5 +50,5 @@ export default function App() {
     return <Signup />;
   }
 
-  return <Chat />;
+  return <Chat activeChatUser={activeChatUser} setActiveChatUser={setActiveChatUser} />;
 }

@@ -1,16 +1,16 @@
 import { useEffect, useState, useRef } from "react";
 import { socket } from "../services/socket";
 import { fetchChatHistory } from "../services/api";
+import ContactList from "../components/ContactList";
 import { Send, MoreVertical, Phone, Video, Search, CheckCheck, LogOut } from "lucide-react";
 import "../App.css";
 
-export default function Chat() {
+export default function Chat({ activeChatUser, setActiveChatUser }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [socketId, setSocketId] = useState(null);
-  const [targetId, setTargetId] = useState("");
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   
@@ -57,16 +57,18 @@ export default function Chat() {
   }, [userName]);
 
   useEffect(() => {
-    if (targetId) {
+    if (activeChatUser?.id) {
       loadHistory();
+    } else {
+      setMessages([]);
     }
-  }, [targetId]);
+  }, [activeChatUser]);
 
   async function loadHistory() {
-    if (!targetId) return;
+    if (!activeChatUser?.id) return;
     setIsLoading(true);
     try {
-      const data = await fetchChatHistory(targetId);
+      const data = await fetchChatHistory(activeChatUser.id);
       setMessages(data.messages || []);
     } catch (error) {
       console.error("Failed to load history:", error);
@@ -77,14 +79,14 @@ export default function Chat() {
 
   function sendMessage() {
     if (!text.trim() || !isConnected) return;
-    if (!targetId) {
-      alert("Please enter target user ID");
+    if (!activeChatUser?.id) {
+      alert("Please select a user to chat with");
       return;
     }
 
     const messageData = {
       from: userName,
-      to: targetId,
+      to: activeChatUser.id,
       message: text.trim(),
       timestamp: Date.now(),
     };
@@ -179,20 +181,27 @@ export default function Chat() {
     <div className="chat-app">
       {/* Chat Container */}
       <div className="chat-container">
-        {/* Header */}
-        <div className="chat-header">
+        {/* Contact List Sidebar */}
+        <div className="contact-list-sidebar">
+          <ContactList onSelect={setActiveChatUser} activeChatUser={activeChatUser} />
+        </div>
+
+        {/* Main Chat Area */}
+        <div className="chat-main">
+          {/* Header */}
+          <div className="chat-header">
           <div className="header-left">
             <div className="avatar-container">
               <div
                 className="avatar"
-                style={{ backgroundColor: getAvatarColor(targetId || "Chat") }}
+                style={{ backgroundColor: getAvatarColor(activeChatUser?.username || activeChatUser?.email || "Chat") }}
               >
-                <span>{targetId ? getInitials(targetId) : "?"}</span>
+                <span>{activeChatUser ? getInitials(activeChatUser.username || activeChatUser.email) : "?"}</span>
               </div>
               {isConnected && <div className="online-indicator"></div>}
             </div>
             <div className="header-info">
-              <h2>{targetId || "Select User"}</h2>
+              <h2>{activeChatUser?.username || activeChatUser?.email || "Select User"}</h2>
               <p className="status-text">
                 {isConnected ? "Online" : "Connecting..."}
               </p>
@@ -217,44 +226,20 @@ export default function Chat() {
           </div>
         </div>
 
-        {/* User Identity Section */}
-        <div className="user-identity-section">
-          <div className="identity-input-group">
-            <label>Your User ID:</label>
-            <input
-              type="text"
-              placeholder="Your User ID (e.g. user1)"
-              value={userName}
-              disabled
-              className="identity-input"
-            />
-          </div>
-          <div className="identity-input-group">
-            <label>Send To User ID:</label>
-            <input
-              type="text"
-              placeholder="Target User ID (e.g. user2)"
-              value={targetId}
-              onChange={(e) => setTargetId(e.target.value)}
-              className="identity-input"
-            />
-          </div>
-        </div>
-
-        {/* Messages Area */}
+          {/* Messages Area */}
         <div className="messages-container">
           <div className="messages-wrapper">
-            {!targetId ? (
+            {!activeChatUser ? (
               <div className="empty-state">
                 <div className="empty-icon">👤</div>
                 <h3>Select a user to chat</h3>
-                <p>Enter a target user ID above to start messaging</p>
+                <p>Choose a contact from the sidebar to start messaging</p>
               </div>
             ) : messages.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">💬</div>
                 <h3>No messages yet</h3>
-                <p>Start the conversation with {targetId}!</p>
+                <p>Start the conversation with {activeChatUser.username || activeChatUser.email}!</p>
               </div>
             ) : (
               messages.map((m, i) => {
@@ -320,19 +305,20 @@ export default function Chat() {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder={!targetId ? "Enter target user ID first" : isConnected ? "Type a message" : "Connecting..."}
-                disabled={!isConnected || !targetId}
+                placeholder={!activeChatUser ? "Select a user to chat" : isConnected ? "Type a message" : "Connecting..."}
+                disabled={!isConnected || !activeChatUser}
                 className="message-input"
               />
               <button
                 onClick={sendMessage}
-                disabled={!text.trim() || !isConnected || !targetId}
+                disabled={!text.trim() || !isConnected || !activeChatUser}
                 className="send-button"
               >
                 <Send size={20} />
               </button>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </div>

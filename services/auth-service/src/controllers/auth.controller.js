@@ -291,3 +291,15 @@ exports.login = async (req, res) => {
   }
 };
 
+// Get all users (for contact list)
+exports.getUsers = async (req, res) => {
+  try {
+    const User = require("../models/User");
+    const users = await User.find({}, { passwordHash: 0 }).select("username email profilePicUrl status");
+    res.json(users);
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({ error: "Failed to fetch users" });
+  }
+};
+
