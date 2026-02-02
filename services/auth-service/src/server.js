@@ -10,8 +10,8 @@ mongoose
   .connect(config.mongoUrl)
   .then(() => {
     console.log("MongoDB connected successfully");
-    console.log(`Database: ${mongoose.connection.name}`);
-    console.log(`Host: ${mongoose.connection.host}:${mongoose.connection.port}`);
+    console.log(`Database: ${"userdb"}`);
+    console.log(`Host: ${"mongodb+srv://gulmanm8787_db_user:JOzuPNHZiLLXfkJV@cluster1.jczm3i1.mongodb.net/userdb?retryWrites=true&w=majority&appName=Cluster1"}:${"27017"}`);
     
     app.listen(PORT, () => {
       console.log(`Auth Service running on port ${PORT}`);
