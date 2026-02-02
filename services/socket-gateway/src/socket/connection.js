@@ -3,9 +3,17 @@ const { publishMessage } = require("../queue/publisher");
 
 module.exports = (io) => {
   io.on("connection", async (socket) => {
-    console.log(`Socket connected: ${socket.id}`);
+    console.log(`Socket connected: ${socket.id}, userId: ${socket.userId}`);
 
-    socket.on("register", async ({ userId }) => {
+    // Register this socket for the authenticated user
+    socket.on("register", async () => {
+      const userId = socket.userId;
+
+      if (!userId) {
+        console.warn(`register called without authenticated userId. socket: ${socket.id}`);
+        return;
+      }
+
       await redis.set(`user:${userId}`, socket.id);
       await redis.set(`presence:${userId}`, "online", "EX", 60);
 
@@ -40,9 +48,11 @@ module.exports = (io) => {
     });
 
     socket.on("disconnect", async () => {
-      console.log(`Socket disconnected: ${socket.id}`);
+      console.log(`Socket disconnected: ${socket.id}, userId: ${socket.userId}`);
 
-      await redis.del(`presence:${socket.id}`);
+      if (socket.userId) {
+        await redis.del(`presence:${socket.userId}`);
+      }
     });
   });
 };

@@ -16,6 +16,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const userName = user.username || user.email || "User";
+  const userId = user.id || user._id || user.userId || user.email || user.username;
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -28,13 +29,18 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   }, [messages]);
 
   useEffect(() => {
-    if (!userName) return;
+    if (!userId) return;
+
+    const token = localStorage.getItem("token");
+    if (token) {
+      socket.auth = { token };
+    }
 
     socket.connect();
 
     socket.once("connect", () => {
-      console.log("Connected as:", userName);
-      socket.emit("register", { userId: userName });
+      console.log("Connected as:", userName, "with id:", userId);
+      socket.emit("register");
       setIsConnected(true);
       setSocketId(socket.id);
     });
@@ -54,7 +60,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       socket.off("disconnect");
       socket.disconnect();
     };
-  }, [userName]);
+  }, [userId, userName]);
 
   useEffect(() => {
     if (activeChatUser?.id) {
