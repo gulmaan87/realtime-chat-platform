@@ -7,4 +7,8 @@ redis.on("connect", () => {
   console.log("Redis connected (API Service)");
 });
 
+redis.on("error", (err) => {
+  console.error("Redis connection error (API Service):", err.message);
+});
+
 module.exports = redis;
