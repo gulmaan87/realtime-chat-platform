@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import{UserPlus} from "lucide-react";
 
-const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "http://localhost:3002";
+const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
 
 export default function ContactList({ onSelect, activeChatUser }) {
   const [contacts, setContacts] = useState([]);

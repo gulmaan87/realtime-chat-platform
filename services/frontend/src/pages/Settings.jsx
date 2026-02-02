@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import "./Settings.css";
 import { ArrowLeft, User, LogOut, Upload, Save, Settings as SettingsIcon, UserCircle, MessageSquare } from "lucide-react";
 
-const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "http://localhost:3002";
+const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
 
 export default function Settings() {
   const [profile, setProfile] = useState(null);
