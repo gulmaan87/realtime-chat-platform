@@ -2,7 +2,7 @@ import { useState } from "react";
 import { LogIn, Mail, Lock, AlertCircle } from "lucide-react";
 import "./Auth.css";
 
-const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "http://localhost:3002";
+const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
 
 export default function Login() {
   const [email, setEmail] = useState("");
