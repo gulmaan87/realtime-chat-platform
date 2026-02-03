@@ -27,8 +27,9 @@ router.post(
     handleUpload,
     async (req, res) => {
       try {
-        if (!req.userId) {
-          console.error("Profile-pic upload: missing req.userId");
+        // Ensure req.user is set by auth middleware
+        if (!req.user) {
+          console.error("Profile-pic upload: missing req.user");
           return res.status(401).json({ message: "Unauthorized: user not found from token" });
         }
 
@@ -39,22 +40,15 @@ router.post(
         console.log("File uploaded:", req.file);
         console.log("File path:", req.file.path);
         console.log("File filename:", req.file.filename);
-        console.log("User ID:", req.userId);
+        console.log("User ID:", req.user._id);
     
         const imagePath = `/uploads/${req.file.filename}`;
     
-        const updatedUser = await User.findByIdAndUpdate(
-          req.userId,
-          { profilePicUrl: imagePath },
-          { new: true }
-        );
-
-        if (!updatedUser) {
-          console.error("Profile-pic upload: user not found for id", req.userId);
-          return res.status(404).json({ message: "User not found" });
-        }
+        // Update ONLY the logged-in user (req.user)
+        req.user.profilePicUrl = imagePath;
+        await req.user.save();
     
-        console.log("Updated user profilePicUrl:", updatedUser?.profilePicUrl);
+        console.log("Updated user profilePicUrl:", req.user.profilePicUrl);
         console.log("Image will be served at:", imagePath);
     
         res.json({

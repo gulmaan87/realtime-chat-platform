@@ -1,7 +1,8 @@
 const jwt = require("jsonwebtoken");
 const config = require("../config");
+const User = require("../models/User");
 
-module.exports = (req, res, next) => {
+module.exports = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader)
     return res.status(401).json({ message: "No token provided" });
@@ -17,6 +18,15 @@ module.exports = (req, res, next) => {
       console.error("Token missing userId:", payload);
       return res.status(401).json({ message: "Invalid token format" });
     }
+
+    // Fetch the full user object from database
+    const user = await User.findById(payload.userId);
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    // Set both req.user (full object) and req.userId for compatibility
+    req.user = user;
     req.userId = payload.userId;
     console.log("Token verified, userId:", req.userId);
     next();

@@ -20,9 +20,9 @@ const storage = multer.diskStorage({
     // Example: userId-profile.jpg
     const ext = path.extname(file.originalname);
 
-    // Extra safety: if for some reason auth didn't set req.userId,
-    // avoid crashing Multer with "undefined-profile".
-    const safeUserId = req.userId || "anonymous";
+    // Use req.user._id (set by auth middleware) to ensure each user gets their own file
+    // Fallback to req.userId for compatibility, then "anonymous" as last resort
+    const safeUserId = req.user?._id?.toString() || req.userId || "anonymous";
     cb(null, `${safeUserId}-profile${ext}`);
   }
 });
