@@ -27,6 +27,11 @@ router.post(
     handleUpload,
     async (req, res) => {
       try {
+        if (!req.userId) {
+          console.error("Profile-pic upload: missing req.userId");
+          return res.status(401).json({ message: "Unauthorized: user not found from token" });
+        }
+
         if (!req.file) {
           return res.status(400).json({ message: "No file uploaded" });
         }
@@ -38,9 +43,16 @@ router.post(
     
         const imagePath = `/uploads/${req.file.filename}`;
     
-        const updatedUser = await User.findByIdAndUpdate(req.userId, {
-          profilePicUrl: imagePath
-        }, { new: true });
+        const updatedUser = await User.findByIdAndUpdate(
+          req.userId,
+          { profilePicUrl: imagePath },
+          { new: true }
+        );
+
+        if (!updatedUser) {
+          console.error("Profile-pic upload: user not found for id", req.userId);
+          return res.status(404).json({ message: "User not found" });
+        }
     
         console.log("Updated user profilePicUrl:", updatedUser?.profilePicUrl);
         console.log("Image will be served at:", imagePath);
@@ -51,7 +63,10 @@ router.post(
         });
       } catch (error) {
         console.error("Error uploading profile picture:", error);
-        res.status(500).json({ message: "Failed to upload profile picture", error: error.message });
+        res.status(500).json({
+          message: "Failed to upload profile picture",
+          error: process.env.NODE_ENV === "production" ? undefined : error.message,
+        });
       }
     }
   );
