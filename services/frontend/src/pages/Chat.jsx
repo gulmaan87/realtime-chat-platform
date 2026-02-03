@@ -217,7 +217,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             <button className="icon-button" onClick={handleLogout} title="Logout">
               <LogOut size={20} />
             </button>
-            <button className="icon-button">
+            {/* <button className="icon-button">
               <Video size={20} />
             </button>
             <button className="icon-button">
@@ -225,7 +225,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             </button>
             <button className="icon-button">
               <Search size={20} />
-            </button>
+            </button> */}
             <button className="icon-button" onClick={() => window.location.href = "/settings"}>
               <Settings size={20} />
             </button>
