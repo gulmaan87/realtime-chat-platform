@@ -1,6 +1,7 @@
-import { useEffect, useState, useRef } from "react";
-import { socket } from "../services/socket";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createSocket } from "../services/socket";
 import { fetchChatHistory } from "../services/api";
+import { clearSession, getSession, getUserId } from "../services/session";
 import ContactList from "../components/ContactList";
 import { Send, MoreVertical, Phone, Video, Search, CheckCheck, LogOut, Settings } from "lucide-react";
 import "../App.css";
@@ -9,14 +10,14 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [isConnected, setIsConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [socketId, setSocketId] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   
-  const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const userName = user.username || user.email || "User";
-  const userId = user.id || user._id || user.userId || user.email || user.username;
+  const { token, user } = getSession();
+  const userName = user?.username || user?.email || "User";
+  const userId = getUserId(user);
+  const socketRef = useRef(null);
+  const chatPartnerId = useMemo(() => activeChatUser?.id || activeChatUser?._id || null, [activeChatUser]);
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -29,75 +30,82 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   }, [messages]);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !token) return;
 
-    const token = localStorage.getItem("token");
-    if (token) {
-      socket.auth = { token };
-    }
+    const currentSocket = createSocket(token);
+    socketRef.current = currentSocket;
 
-    socket.connect();
-
-    socket.once("connect", () => {
+    currentSocket.on("connect", () => {
       console.log("Connected as:", userName, "with id:", userId);
-      socket.emit("register");
+      currentSocket.emit("register");
       setIsConnected(true);
-      setSocketId(socket.id);
     });
 
-    socket.on("private_message", (msg) => {
+    currentSocket.on("private_message", (msg) => {
       console.log("Received private message:", msg);
       setMessages((prev) => [...prev, msg]);
     });
 
-    socket.on("disconnect", () => {
+    currentSocket.on("disconnect", () => {
       setIsConnected(false);
     });
 
+    currentSocket.connect();
+
     return () => {
-      socket.off("connect");
-      socket.off("private_message");
-      socket.off("disconnect");
-      socket.disconnect();
+      currentSocket.off("connect");
+      currentSocket.off("private_message");
+      currentSocket.off("disconnect");
+      currentSocket.disconnect();
+      if (socketRef.current === currentSocket) {
+        socketRef.current = null;
+      }
     };
-  }, [userId, userName]);
+  }, [token, userId, userName]);
 
   useEffect(() => {
-    if (activeChatUser?.id) {
-      loadHistory();
-    } else {
-      setMessages([]);
-    }
-  }, [activeChatUser]);
+    let isMounted = true;
 
-  async function loadHistory() {
-    if (!activeChatUser?.id) return;
-    setIsLoading(true);
-    try {
-      const data = await fetchChatHistory(activeChatUser.id);
-      setMessages(data.messages || []);
-    } catch (error) {
-      console.error("Failed to load history:", error);
-    } finally {
-      setIsLoading(false);
+    async function loadHistory() {
+      if (!chatPartnerId) {
+        setMessages([]);
+        return;
+      }
+
+      try {
+        const data = await fetchChatHistory(chatPartnerId);
+        if (isMounted) {
+          setMessages(data.messages || []);
+        }
+      } catch (error) {
+        console.error("Failed to load history:", error);
+      }
     }
-  }
+
+    loadHistory();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [chatPartnerId]);
 
   function sendMessage() {
     if (!text.trim() || !isConnected) return;
-    if (!activeChatUser?.id) {
+    if (!chatPartnerId) {
       alert("Please select a user to chat with");
       return;
     }
 
     const messageData = {
       from: userName,
-      to: activeChatUser.id,
+      fromUserId: userId,
+      toUserId: chatPartnerId,
+      to: chatPartnerId,
       message: text.trim(),
       timestamp: Date.now(),
     };
 
-    socket.emit("private_message", messageData);
+    socketRef.current?.emit("private_message", messageData);
 
     // Optimistic UI update (sender side)
     setMessages((prev) => [
@@ -120,9 +128,8 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   }
 
   function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    socket.disconnect();
+    clearSession();
+    socketRef.current?.disconnect();
     window.location.href = "/login";
   }
 
@@ -154,7 +161,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
     const currentSender = current.from || current.sender || current.message;
     const previousSender = previous.from || previous.sender || previous.message;
-    const timeDiff = (current.timestamp || Date.now()) - (previous.timestamp || Date.now());
+    const currentTimestamp = Number(current.timestamp || 0);
+    const previousTimestamp = Number(previous.timestamp || 0);
+    const timeDiff = currentTimestamp - previousTimestamp;
 
     return currentSender === previousSender && Math.abs(timeDiff) < 300000; // 5 minutes
   }
@@ -180,7 +189,8 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   }
 
   const isOwnMessage = (messageData) => {
-    return messageData.from === userName || messageData.self === true || (!messageData.from && !messageData.sender);
+    const senderId = messageData.fromUserId || messageData.senderId || messageData.from;
+    return messageData.self === true || senderId === userId || messageData.from === userName;
   };
 
   return (
@@ -250,7 +260,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             ) : (
               messages.map((m, i) => {
                 const messageData = typeof m === "string"
-                  ? { message: m, timestamp: Date.now() }
+                  ? { message: m, timestamp: 0 }
                   : m;
 
                 const own = isOwnMessage(messageData);

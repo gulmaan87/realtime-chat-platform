@@ -41,7 +41,7 @@ export default function Settings() {
         let data;
         try {
           data = await res.json();
-        } catch (e) {
+        } catch {
           // If response is not JSON, get text
           const text = await res.text();
           throw new Error(text || `Server error (${res.status})`);
@@ -110,7 +110,7 @@ export default function Settings() {
         throw new Error("Failed to update status");
       }
 
-      const data = await res.json();
+      await res.json();
       setSuccessMessage("Status updated successfully");
       setError("");
       setTimeout(() => setSuccessMessage(""), 3000);
