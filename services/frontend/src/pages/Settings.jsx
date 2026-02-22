@@ -1,8 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./Settings.css";
-import { ArrowLeft, User, LogOut, Upload, Save, Settings as SettingsIcon, UserCircle, MessageSquare } from "lucide-react";
+import { ArrowLeft, User, Upload, Save, UserCircle, MessageSquare } from "lucide-react";
 
 const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
+
+
+function normalizeProfilePicUrl(value) {
+  if (typeof value !== "string") return "";
+  return value.startsWith("/uploads/") ? value : "";
+}
 
 export default function Settings() {
   const [profile, setProfile] = useState(null);
@@ -10,8 +16,13 @@ export default function Settings() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
   const token = localStorage.getItem("token");
 
+  const profileImageUrl = useMemo(() => {
+    if (!profile?.profilePicUrl) return "";
+    return `${AUTH_API_URL}${profile.profilePicUrl}`;
+  }, [profile?.profilePicUrl]);
 
   useEffect(() => {
     // Enable scrolling on settings page
@@ -59,8 +70,9 @@ export default function Settings() {
         console.log("Profile loaded:", data);
         console.log("Profile picture URL:", data.profilePicUrl);
         console.log("Full image URL:", data.profilePicUrl ? `${AUTH_API_URL}${data.profilePicUrl}` : "No URL");
-        setProfile(data);
+        setProfile({ ...data, profilePicUrl: normalizeProfilePicUrl(data.profilePicUrl) });
         setStatus(data.status || "");
+        setImageLoadFailed(false);
         setError("");
       })
       .catch(err => {
@@ -155,38 +167,38 @@ export default function Settings() {
         body: formData
       });
 
-      // Read response body only once
-      const data = await res.json();
+      const rawBody = await res.text();
+      let data = {};
+      if (rawBody) {
+        try {
+          data = JSON.parse(rawBody);
+        } catch {
+          data = { message: rawBody };
+        }
+      }
 
       if (!res.ok) {
         throw new Error(data.message || data.error || `Failed to upload profile picture (${res.status})`);
       }
-  
-      console.log("Upload response:", data);
-      console.log("New profilePicUrl:", data.profilePicUrl);
-      console.log("Full image URL will be:", `${AUTH_API_URL}${data.profilePicUrl}`);
-  
-      // Update profile with new image URL
-      const updatedProfile = {
-        ...profile,
-        profilePicUrl: data.profilePicUrl
-      };
-      setProfile(updatedProfile);
+
+      const newProfilePicUrl = normalizeProfilePicUrl(data.profilePicUrl);
+      if (!newProfilePicUrl) {
+        throw new Error("Upload succeeded but no profile image URL returned");
+      }
+
+      // Update profile immediately in UI and reset broken-image state
+      setProfile((prev) => ({ ...(prev || {}), profilePicUrl: newProfilePicUrl }));
+      setImageLoadFailed(false);
       setError("");
       setSuccessMessage("Profile picture updated successfully");
       setTimeout(() => setSuccessMessage(""), 3000);
-      
+
       // Reset file input
       e.target.value = "";
     } catch (err) {
       console.error("Error uploading profile picture:", err);
-      // Handle JSON parse errors
-      if (err.name === "SyntaxError" || err.message.includes("JSON")) {
-        setError("Invalid response from server. Please try again.");
-      } else {
-        const errorMessage = err.message || "Failed to upload profile picture. Please try again.";
-        setError(errorMessage);
-      }
+      const errorMessage = err.message || "Failed to upload profile picture. Please try again.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -263,33 +275,20 @@ export default function Settings() {
               </div>
               <div className="profile-picture-section">
                 <div className="profile-picture-wrapper">
-                  {profile?.profilePicUrl ? (
+                  {profileImageUrl && !imageLoadFailed ? (
                     <img
-                      src={`${AUTH_API_URL}${profile.profilePicUrl}?t=${Date.now()}`}
+                      src={profileImageUrl}
                       alt="Profile"
                       className="profile-picture"
-                      key={profile.profilePicUrl}
-                      onError={(e) => {
-                        const imageUrl = `${AUTH_API_URL}${profile.profilePicUrl}`;
-                        console.error("Failed to load profile picture from:", imageUrl);
-                        console.error("Error details:", e);
-                        // Hide the broken image and show placeholder
-                        if (e.target) {
-                          e.target.style.display = "none";
-                        }
-                        const placeholder = e.target?.nextSibling || e.target?.parentElement?.querySelector('.profile-picture-placeholder');
-                        if (placeholder) {
-                          placeholder.style.display = "flex";
-                        }
-                      }}
-                      onLoad={() => {
-                        console.log("Profile picture loaded successfully:", `${AUTH_API_URL}${profile.profilePicUrl}`);
+                      key={profileImageUrl}
+                      onError={() => {
+                        setImageLoadFailed(true);
                       }}
                     />
                   ) : null}
                   <div 
                     className="profile-picture-placeholder"
-                    style={{ display: profile?.profilePicUrl ? "none" : "flex" }}
+                    style={{ display: profileImageUrl && !imageLoadFailed ? "none" : "flex" }}
                   >
                     {profile?.username?.charAt(0)?.toUpperCase() || "U"}
                   </div>
