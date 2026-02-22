@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import{UserPlus} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { UserPlus } from "lucide-react";
 
 const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
 
@@ -13,47 +13,52 @@ export default function ContactList({ onSelect, activeChatUser }) {
   const [addSuccess, setAddSuccess] = useState(false);
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
 
-  function fetchContacts() {
+  const fetchContacts = useCallback(() => {
     setLoading(true);
-    // Fetch all users (you can replace this with a contacts endpoint later)
-    fetch(`${AUTH_API_URL}/auth/users`, {
+    // Fetch only logged-in user's contacts
+    fetch(`${AUTH_API_URL}/contacts`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`
       }
     })
-      .then(res => {
+      .then((res) => {
         if (!res.ok) {
           return [];
         }
         return res.json();
       })
-      .then(data => {
+      .then((data) => {
         // Filter out current user and format contacts
         const users = Array.isArray(data) ? data : (data.users || []);
         const currentUserId = currentUser.id || currentUser._id;
         const filtered = users
-          .filter(u => {
+          .filter((u) => {
             const userId = u._id?.toString() || u.id?.toString();
             return userId !== currentUserId?.toString() && u.username !== currentUser.username;
           })
-          .map(u => ({
+          .map((u) => ({
             id: u._id?.toString() || u.id?.toString(),
             username: u.username,
-            email: u.email,
+            email: u.email || "",
             profilePicUrl: u.profilePicUrl,
             status: u.status
           }));
         setContacts(filtered);
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Failed to fetch contacts:", err);
         setContacts([]);
       })
       .finally(() => setLoading(false));
-    }
-    useEffect(() => {
+  }, [currentUser.id, currentUser._id, currentUser.username]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
       fetchContacts();
-  }, []);
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [fetchContacts]);
 
   async function handleAddFriend(e) {
     e.preventDefault();
@@ -66,7 +71,7 @@ export default function ContactList({ onSelect, activeChatUser }) {
     }
     setAddLoading(true);
     try {
-      const res = await fetch(`${AUTH_API_URL}/contacts`, {
+      const res = await fetch(`${AUTH_API_URL}/contacts/add`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -87,7 +92,7 @@ export default function ContactList({ onSelect, activeChatUser }) {
         setAddSuccess("");
         setShowAddFriend(false);
       }, 1500);
-    } catch (err) {
+    } catch {
       setAddError("Network error. Try again.");
     }
     setAddLoading(false);

@@ -20,17 +20,28 @@ module.exports = (io) => {
       console.log(`REGISTERED ${userId} -> ${socket.id}`);
     });
 
-    socket.on("private_message", async ({ from, to, message }) => {
-      console.log(`PRIVATE MESSAGE ${from} -> ${to}: ${message}`);
+    socket.on("private_message", async ({ to, message }) => {
+      const fromUserId = socket.userId;
+
+      if (!fromUserId || !to || !message) {
+        return;
+      }
+
+      console.log(`PRIVATE MESSAGE ${fromUserId} -> ${to}: ${message}`);
+
+      const payload = {
+        from: fromUserId,
+        fromUserId,
+        to,
+        toUserId: to,
+        message,
+        timestamp: Date.now(),
+      };
 
       const targetSocketId = await redis.get(`user:${to}`);
 
       if (targetSocketId) {
-        io.to(targetSocketId).emit("private_message", {
-          from,
-          message,
-          timestamp: Date.now(),
-        });
+        io.to(targetSocketId).emit("private_message", payload);
       } else {
         console.log(`User ${to} is offline`);
         // later: store in DB / queue

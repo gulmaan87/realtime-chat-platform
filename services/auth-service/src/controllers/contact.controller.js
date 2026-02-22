@@ -50,7 +50,7 @@ exports.getContacts = async (req, res) => {
 
     const ownerUserId = req.user._id;
     const contacts = await Contact.find({ ownerUserId })
-      .populate("contactUserId", "username profilePicUrl status");
+      .populate("contactUserId", "username email profilePicUrl status");
   
     res.json(
       contacts.map(c => c.contactUserId)
