@@ -15,8 +15,8 @@ export default function ContactList({ onSelect, activeChatUser }) {
 
   const fetchContacts = useCallback(() => {
     setLoading(true);
-    // Fetch all users (you can replace this with a contacts endpoint later)
-    fetch(`${AUTH_API_URL}/auth/users`, {
+    // Fetch only logged-in user's contacts
+    fetch(`${AUTH_API_URL}/contacts`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`
       }
@@ -39,7 +39,7 @@ export default function ContactList({ onSelect, activeChatUser }) {
           .map((u) => ({
             id: u._id?.toString() || u.id?.toString(),
             username: u.username,
-            email: u.email,
+            email: u.email || "",
             profilePicUrl: u.profilePicUrl,
             status: u.status
           }));
@@ -71,7 +71,7 @@ export default function ContactList({ onSelect, activeChatUser }) {
     }
     setAddLoading(true);
     try {
-      const res = await fetch(`${AUTH_API_URL}/contacts`, {
+      const res = await fetch(`${AUTH_API_URL}/contacts/add`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
