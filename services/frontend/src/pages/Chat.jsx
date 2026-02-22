@@ -10,6 +10,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [isConnected, setIsConnected] = useState(false);
+  const [onlineStatuses, setOnlineStatuses] = useState({});
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   
@@ -46,6 +47,24 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       setMessages((prev) => [...prev, msg]);
     });
 
+    currentSocket.on("presence_update", ({ userId: presenceUserId, status }) => {
+      if (!presenceUserId) return;
+      setOnlineStatuses((prev) => ({ ...prev, [String(presenceUserId)]: status === "online" }));
+    });
+
+    currentSocket.on("presence_snapshot", (snapshot) => {
+      if (!Array.isArray(snapshot)) return;
+      setOnlineStatuses((prev) => {
+        const next = { ...prev };
+        snapshot.forEach(({ userId: presenceUserId, status }) => {
+          if (presenceUserId) {
+            next[String(presenceUserId)] = status === "online";
+          }
+        });
+        return next;
+      });
+    });
+
     currentSocket.on("disconnect", () => {
       setIsConnected(false);
     });
@@ -55,6 +74,8 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     return () => {
       currentSocket.off("connect");
       currentSocket.off("private_message");
+      currentSocket.off("presence_update");
+      currentSocket.off("presence_snapshot");
       currentSocket.off("disconnect");
       currentSocket.disconnect();
       if (socketRef.current === currentSocket) {
@@ -188,6 +209,11 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     return colors[index];
   }
 
+  function handleContactsLoaded(contactIds) {
+    if (!Array.isArray(contactIds) || contactIds.length === 0) return;
+    socketRef.current?.emit("request_presence", { userIds: contactIds });
+  }
+
   const isOwnMessage = (messageData) => {
     const senderId = messageData.fromUserId || messageData.senderId || messageData.from;
     return messageData.self === true || senderId === userId || messageData.from === userName;
@@ -199,7 +225,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       <div className="chat-container">
         {/* Contact List Sidebar */}
         <div className="contact-list-sidebar">
-          <ContactList onSelect={setActiveChatUser} activeChatUser={activeChatUser} />
+          <ContactList onSelect={setActiveChatUser} activeChatUser={activeChatUser} onContactsLoaded={handleContactsLoaded} onlineStatuses={onlineStatuses} />
         </div>
 
         {/* Main Chat Area */}

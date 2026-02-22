@@ -3,7 +3,7 @@ import { UserPlus } from "lucide-react";
 
 const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
 
-export default function ContactList({ onSelect, activeChatUser }) {
+export default function ContactList({ onSelect, activeChatUser, onContactsLoaded, onlineStatuses = {} }) {
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddFriend, setShowAddFriend] = useState(false);
@@ -44,12 +44,14 @@ export default function ContactList({ onSelect, activeChatUser }) {
             status: u.status
           }));
         setContacts(filtered);
+        onContactsLoaded?.(filtered.map((contact) => contact.id));
       })
       .catch((err) => {
         console.error("Failed to fetch contacts:", err);
         setContacts([]);
       })
       .finally(() => setLoading(false));
+  }, [currentUser.id, currentUser._id, currentUser.username, onContactsLoaded]);
   }, [currentUser.id, currentUser._id, currentUser.username]);
 
   useEffect(() => {
@@ -210,7 +212,7 @@ export default function ContactList({ onSelect, activeChatUser }) {
                 </div>
                 <div className="contact-info">
                   <div className="contact-name">{contact.username || contact.email}</div>
-                  <div className="contact-status">{contact.status || "Hey there! I am using ChatApp"}</div>
+                  <div className="contact-status">{onlineStatuses[String(contact.id)] ? "Online" : "Offline"}</div>
                 </div>
               </div>
             );
