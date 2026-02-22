@@ -51,8 +51,8 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
         setContacts([]);
       })
       .finally(() => setLoading(false));
-  }, [currentUser.id, currentUser._id, currentUser.username, onContactsLoaded]);
-  }, [currentUser.id, currentUser._id, currentUser.username]);
+//   }, [currentUser.id, currentUser._id, currentUser.username, onContactsLoaded]);
+  }, [currentUser.id, currentUser._id, currentUser.username,onContactsLoaded]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
