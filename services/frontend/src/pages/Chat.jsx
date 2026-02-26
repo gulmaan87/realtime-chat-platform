@@ -217,10 +217,10 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     return colors[index];
   }
 
-  const handleContactsLoaded = useCallback((contactIds) => {
+  function handleContactsLoaded(contactIds) {
     if (!Array.isArray(contactIds) || contactIds.length === 0) return;
     socketRef.current?.emit("request_presence", { userIds: contactIds });
-  }, []);
+  }
 
   const isOwnMessage = (messageData) => {
     const senderId = messageData.fromUserId || messageData.senderId || messageData.from;

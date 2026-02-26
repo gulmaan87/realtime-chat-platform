@@ -28,10 +28,10 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
     };
   }, []);
 
-  const isNotCurrentUser = useCallback((contact) => {
-    const currentUserId = (currentUser.id || currentUser._id)?.toString();
-    return contact.id !== currentUserId && contact.username !== currentUser.username;
-  }, [currentUser.id, currentUser._id, currentUser.username]);
+const isNotCurrentUser = useCallback((contact) => {
+  const currentUserId = (currentUser.id || currentUser._id)?.toString();
+  return contact.id !== currentUserId && contact.username !== currentUser.username;
+}, [currentUser.id, currentUser._id, currentUser.username]);
 
   const fetchContacts = useCallback(() => {
     setLoading(true);
@@ -60,7 +60,10 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
         setContacts([]);
       })
       .finally(() => setLoading(false));
-  }, [isNotCurrentUser, normalizeContact, onContactsLoaded]);
+  // }, [isNotCurrentUser, normalizeContact, onContactsLoaded]);
+  }, [currentUser.id, currentUser._id, currentUser.username, normalizeContact, onContactsLoaded,isNotCurrentUser]);
+//   }, [currentUser.id, currentUser._id, currentUser.username, onContactsLoaded]);
+  // }, [currentUser.id, currentUser._id, currentUser.username,onContactsLoaded]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
