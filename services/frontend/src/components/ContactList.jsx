@@ -74,7 +74,7 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
     setAddSuccess("");
     const username = addUsername.trim();
     if (!username) {
-      setAddError("Enter a username");
+      setAddError("Enter a username or email");
       return;
     }
     setAddLoading(true);
@@ -85,7 +85,7 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`
         },
-        body: JSON.stringify({ username })
+        body: JSON.stringify({ username, identifier: username, email: username })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
