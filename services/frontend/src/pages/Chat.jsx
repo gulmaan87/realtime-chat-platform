@@ -19,6 +19,14 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const userId = getUserId(user);
   const socketRef = useRef(null);
   const chatPartnerId = useMemo(() => activeChatUser?.id || activeChatUser?._id || null, [activeChatUser]);
+  const sharedMedia = [
+    "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=300&h=300&fit=crop",
+    "https://images.unsplash.com/photo-1493666438817-866a91353ca9?w=300&h=300&fit=crop",
+    "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=300&h=300&fit=crop",
+    "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=300&h=300&fit=crop",
+    "https://images.unsplash.com/photo-1493666438817-866a91353ca9?w=300&h=300&fit=crop",
+    "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=300&h=300&fit=crop"
+  ];
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -223,6 +231,18 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     <div className="chat-app">
       {/* Chat Container */}
       <div className="chat-container">
+        <aside className="app-rail">
+          <div className="rail-top">
+            <button className="rail-button active" aria-label="Chats">💬</button>
+            <button className="rail-button" aria-label="Contacts">👥</button>
+            <button className="rail-button" aria-label="Files">📁</button>
+          </div>
+          <div className="rail-bottom">
+            <button className="rail-button" onClick={() => window.location.href = "/settings"} aria-label="Settings">⚙️</button>
+            <button className="rail-button" onClick={handleLogout} aria-label="Logout">↩</button>
+          </div>
+        </aside>
+
         {/* Contact List Sidebar */}
         <div className="contact-list-sidebar">
           <ContactList onSelect={setActiveChatUser} activeChatUser={activeChatUser} onContactsLoaded={handleContactsLoaded} onlineStatuses={onlineStatuses} />
@@ -362,6 +382,27 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
           </div>
         </div>
         </div>
+
+        <aside className="chat-details">
+          <div className="details-user-card">
+            <div className="details-avatar" style={{ backgroundColor: getAvatarColor(activeChatUser?.username || activeChatUser?.email || "User") }}>
+              {getInitials(activeChatUser?.username || activeChatUser?.email || "U")}
+            </div>
+            <h3>{activeChatUser?.username || "No chat selected"}</h3>
+            <p>{activeChatUser?.email || "Select a contact to view details"}</p>
+          </div>
+
+          <div className="details-section">
+            <div className="details-section-header">Shared Media</div>
+            <div className="details-media-grid">
+              {sharedMedia.map((src, idx) => (
+                <img key={idx} src={src} alt={`Shared media ${idx + 1}`} />
+              ))}
+            </div>
+          </div>
+
+          <button className="details-cta">View All</button>
+        </aside>
       </div>
     </div>
   );

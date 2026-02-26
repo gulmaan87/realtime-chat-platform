@@ -52,26 +52,6 @@ const isNotCurrentUser = useCallback((contact) => {
         const users = Array.isArray(data) ? data : (data.users || []);
         const normalizedUsers = users.map(normalizeContact).filter(Boolean);
         const filtered = normalizedUsers.filter(isNotCurrentUser);
-        const currentUserId = currentUser.id || currentUser._id;
-        const normalizedUsers = users.map(normalizeContact).filter(Boolean);
-        const filtered = normalizedUsers.filter(
-          (u) => u.id !== currentUserId?.toString() && u.username !== currentUser.username
-        );
-        const filtered = users
-          .map(normalizeContact)
-          .filter(Boolean)
-          .filter((u) => u.id !== currentUserId?.toString() && u.username !== currentUser.username);
-          .filter((u) => {
-            const userId = u._id?.toString() || u.id?.toString();
-            return userId !== currentUserId?.toString() && u.username !== currentUser.username;
-          })
-          .map((u) => ({
-            id: u._id?.toString() || u.id?.toString(),
-            username: u.username,
-            email: u.email || "",
-            profilePicUrl: u.profilePicUrl,
-            status: u.status
-          }));
         setContacts(filtered);
         onContactsLoaded?.(filtered.map((contact) => contact.id));
       })
