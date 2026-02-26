@@ -3,7 +3,7 @@ const path = require("path");
 const fs = require("fs");
 
 // Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, "..", "uploads");
+const uploadsDir = path.join(__dirname, "..", "..", "uploads");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
   console.log("Created uploads directory:", uploadsDir);
@@ -17,13 +17,12 @@ const storage = multer.diskStorage({
   },
 
   filename: (req, file, cb) => {
-    // Example: userId-profile.jpg
-    const ext = path.extname(file.originalname);
+    const ext = path.extname(file.originalname).toLowerCase();
 
-    // Use req.user._id (set by auth middleware) to ensure each user gets their own file
-    // Fallback to req.userId for compatibility, then "anonymous" as last resort
+    // Use unique name each upload so browser/CDN cache cannot keep stale image
     const safeUserId = req.user?._id?.toString() || req.userId || "anonymous";
-    cb(null, `${safeUserId}-profile${ext}`);
+    const uniqueSuffix = Date.now();
+    cb(null, `${safeUserId}-${uniqueSuffix}${ext}`);
   }
 });
 
