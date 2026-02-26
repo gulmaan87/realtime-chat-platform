@@ -46,6 +46,10 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
         // Filter out current user and format contacts
         const users = Array.isArray(data) ? data : (data.users || []);
         const currentUserId = currentUser.id || currentUser._id;
+        const normalizedUsers = users.map(normalizeContact).filter(Boolean);
+        const filtered = normalizedUsers.filter(
+          (u) => u.id !== currentUserId?.toString() && u.username !== currentUser.username
+        );
         const filtered = users
           .map(normalizeContact)
           .filter(Boolean)
@@ -87,7 +91,7 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
     setAddSuccess("");
     const username = addUsername.trim();
     if (!username) {
-      setAddError("Enter a username");
+      setAddError("Enter a username or email");
       return;
     }
     setAddLoading(true);
@@ -98,7 +102,7 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`
         },
-        body: JSON.stringify({ username })
+        body: JSON.stringify({ username, identifier: username, email: username })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
