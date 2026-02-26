@@ -32,7 +32,7 @@ const userSchema = new mongoose.Schema({
   username: { type: String, unique: true, required: true },
   email: { type: String, unique: true, required: true },
   passwordHash: { type: String, required: true },
-  profilePicUrl: { type: mongoose.Schema.Types.ObjectId, ref: "File", required: false },
+  profilePicUrl: { type: String, default: "" },
   status: { type: String, default: "Hey there! I am using ChatApp" }
 }, { timestamps: true });
 

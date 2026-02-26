@@ -1,6 +1,7 @@
-import { useEffect, useState, useRef } from "react";
-import { socket } from "../services/socket";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createSocket } from "../services/socket";
 import { fetchChatHistory } from "../services/api";
+import { clearSession, getSession, getUserId } from "../services/session";
 import ContactList from "../components/ContactList";
 import { Send, MoreVertical, Phone, Video, Search, CheckCheck, LogOut, Settings } from "lucide-react";
 import "../App.css";
@@ -9,14 +10,23 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [isConnected, setIsConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [socketId, setSocketId] = useState(null);
+  const [onlineStatuses, setOnlineStatuses] = useState({});
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   
-  const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const userName = user.username || user.email || "User";
-  const userId = user.id || user._id || user.userId || user.email || user.username;
+  const { token, user } = getSession();
+  const userName = user?.username || user?.email || "User";
+  const userId = getUserId(user);
+  const socketRef = useRef(null);
+  const chatPartnerId = useMemo(() => activeChatUser?.id || activeChatUser?._id || null, [activeChatUser]);
+  const sharedMedia = [
+    "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=300&h=300&fit=crop",
+    "https://images.unsplash.com/photo-1493666438817-866a91353ca9?w=300&h=300&fit=crop",
+    "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=300&h=300&fit=crop",
+    "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=300&h=300&fit=crop",
+    "https://images.unsplash.com/photo-1493666438817-866a91353ca9?w=300&h=300&fit=crop",
+    "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=300&h=300&fit=crop"
+  ];
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -29,75 +39,102 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   }, [messages]);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !token) return;
 
-    const token = localStorage.getItem("token");
-    if (token) {
-      socket.auth = { token };
-    }
+    const currentSocket = createSocket(token);
+    socketRef.current = currentSocket;
 
-    socket.connect();
-
-    socket.once("connect", () => {
+    currentSocket.on("connect", () => {
       console.log("Connected as:", userName, "with id:", userId);
-      socket.emit("register");
+      currentSocket.emit("register");
       setIsConnected(true);
-      setSocketId(socket.id);
     });
 
-    socket.on("private_message", (msg) => {
+    currentSocket.on("private_message", (msg) => {
       console.log("Received private message:", msg);
       setMessages((prev) => [...prev, msg]);
     });
 
-    socket.on("disconnect", () => {
+    currentSocket.on("presence_update", ({ userId: presenceUserId, status }) => {
+      if (!presenceUserId) return;
+      setOnlineStatuses((prev) => ({ ...prev, [String(presenceUserId)]: status === "online" }));
+    });
+
+    currentSocket.on("presence_snapshot", (snapshot) => {
+      if (!Array.isArray(snapshot)) return;
+      setOnlineStatuses((prev) => {
+        const next = { ...prev };
+        snapshot.forEach(({ userId: presenceUserId, status }) => {
+          if (presenceUserId) {
+            next[String(presenceUserId)] = status === "online";
+          }
+        });
+        return next;
+      });
+    });
+
+    currentSocket.on("disconnect", () => {
       setIsConnected(false);
     });
 
+    currentSocket.connect();
+
     return () => {
-      socket.off("connect");
-      socket.off("private_message");
-      socket.off("disconnect");
-      socket.disconnect();
+      currentSocket.off("connect");
+      currentSocket.off("private_message");
+      currentSocket.off("presence_update");
+      currentSocket.off("presence_snapshot");
+      currentSocket.off("disconnect");
+      currentSocket.disconnect();
+      if (socketRef.current === currentSocket) {
+        socketRef.current = null;
+      }
     };
-  }, [userId, userName]);
+  }, [token, userId, userName]);
 
   useEffect(() => {
-    if (activeChatUser?.id) {
-      loadHistory();
-    } else {
-      setMessages([]);
-    }
-  }, [activeChatUser]);
+    let isMounted = true;
 
-  async function loadHistory() {
-    if (!activeChatUser?.id) return;
-    setIsLoading(true);
-    try {
-      const data = await fetchChatHistory(activeChatUser.id);
-      setMessages(data.messages || []);
-    } catch (error) {
-      console.error("Failed to load history:", error);
-    } finally {
-      setIsLoading(false);
+    async function loadHistory() {
+      if (!chatPartnerId) {
+        setMessages([]);
+        return;
+      }
+
+      try {
+        const data = await fetchChatHistory(chatPartnerId);
+        if (isMounted) {
+          setMessages(data.messages || []);
+        }
+      } catch (error) {
+        console.error("Failed to load history:", error);
+      }
     }
-  }
+
+    loadHistory();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [chatPartnerId]);
 
   function sendMessage() {
     if (!text.trim() || !isConnected) return;
-    if (!activeChatUser?.id) {
+    if (!chatPartnerId) {
       alert("Please select a user to chat with");
       return;
     }
 
     const messageData = {
       from: userName,
-      to: activeChatUser.id,
+      fromUserId: userId,
+      toUserId: chatPartnerId,
+      to: chatPartnerId,
       message: text.trim(),
       timestamp: Date.now(),
     };
 
-    socket.emit("private_message", messageData);
+    socketRef.current?.emit("private_message", messageData);
 
     // Optimistic UI update (sender side)
     setMessages((prev) => [
@@ -120,9 +157,8 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   }
 
   function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    socket.disconnect();
+    clearSession();
+    socketRef.current?.disconnect();
     window.location.href = "/login";
   }
 
@@ -154,7 +190,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
     const currentSender = current.from || current.sender || current.message;
     const previousSender = previous.from || previous.sender || previous.message;
-    const timeDiff = (current.timestamp || Date.now()) - (previous.timestamp || Date.now());
+    const currentTimestamp = Number(current.timestamp || 0);
+    const previousTimestamp = Number(previous.timestamp || 0);
+    const timeDiff = currentTimestamp - previousTimestamp;
 
     return currentSender === previousSender && Math.abs(timeDiff) < 300000; // 5 minutes
   }
@@ -179,17 +217,35 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     return colors[index];
   }
 
+  function handleContactsLoaded(contactIds) {
+    if (!Array.isArray(contactIds) || contactIds.length === 0) return;
+    socketRef.current?.emit("request_presence", { userIds: contactIds });
+  }
+
   const isOwnMessage = (messageData) => {
-    return messageData.from === userName || messageData.self === true || (!messageData.from && !messageData.sender);
+    const senderId = messageData.fromUserId || messageData.senderId || messageData.from;
+    return messageData.self === true || senderId === userId || messageData.from === userName;
   };
 
   return (
     <div className="chat-app">
       {/* Chat Container */}
       <div className="chat-container">
+        <aside className="app-rail">
+          <div className="rail-top">
+            <button className="rail-button active" aria-label="Chats">💬</button>
+            <button className="rail-button" aria-label="Contacts">👥</button>
+            <button className="rail-button" aria-label="Files">📁</button>
+          </div>
+          <div className="rail-bottom">
+            <button className="rail-button" onClick={() => window.location.href = "/settings"} aria-label="Settings">⚙️</button>
+            <button className="rail-button" onClick={handleLogout} aria-label="Logout">↩</button>
+          </div>
+        </aside>
+
         {/* Contact List Sidebar */}
         <div className="contact-list-sidebar">
-          <ContactList onSelect={setActiveChatUser} activeChatUser={activeChatUser} />
+          <ContactList onSelect={setActiveChatUser} activeChatUser={activeChatUser} onContactsLoaded={handleContactsLoaded} onlineStatuses={onlineStatuses} />
         </div>
 
         {/* Main Chat Area */}
@@ -250,7 +306,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             ) : (
               messages.map((m, i) => {
                 const messageData = typeof m === "string"
-                  ? { message: m, timestamp: Date.now() }
+                  ? { message: m, timestamp: 0 }
                   : m;
 
                 const own = isOwnMessage(messageData);
@@ -326,6 +382,27 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
           </div>
         </div>
         </div>
+
+        <aside className="chat-details">
+          <div className="details-user-card">
+            <div className="details-avatar" style={{ backgroundColor: getAvatarColor(activeChatUser?.username || activeChatUser?.email || "User") }}>
+              {getInitials(activeChatUser?.username || activeChatUser?.email || "U")}
+            </div>
+            <h3>{activeChatUser?.username || "No chat selected"}</h3>
+            <p>{activeChatUser?.email || "Select a contact to view details"}</p>
+          </div>
+
+          <div className="details-section">
+            <div className="details-section-header">Shared Media</div>
+            <div className="details-media-grid">
+              {sharedMedia.map((src, idx) => (
+                <img key={idx} src={src} alt={`Shared media ${idx + 1}`} />
+              ))}
+            </div>
+          </div>
+
+          <button className="details-cta">View All</button>
+        </aside>
       </div>
     </div>
   );
