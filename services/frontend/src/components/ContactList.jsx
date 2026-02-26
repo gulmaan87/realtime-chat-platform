@@ -28,10 +28,10 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
     };
   }, []);
 
-  const isNotCurrentUser = useCallback((contact) => {
-    const currentUserId = (currentUser.id || currentUser._id)?.toString();
-    return contact.id !== currentUserId && contact.username !== currentUser.username;
-  }, [currentUser.id, currentUser._id, currentUser.username]);
+const isNotCurrentUser = useCallback((contact) => {
+  const currentUserId = (currentUser.id || currentUser._id)?.toString();
+  return contact.id !== currentUserId && contact.username !== currentUser.username;
+}, [currentUser.id, currentUser._id, currentUser.username]);
 
   const fetchContacts = useCallback(() => {
     setLoading(true);
@@ -52,6 +52,26 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
         const users = Array.isArray(data) ? data : (data.users || []);
         const normalizedUsers = users.map(normalizeContact).filter(Boolean);
         const filtered = normalizedUsers.filter(isNotCurrentUser);
+        const currentUserId = currentUser.id || currentUser._id;
+        const normalizedUsers = users.map(normalizeContact).filter(Boolean);
+        const filtered = normalizedUsers.filter(
+          (u) => u.id !== currentUserId?.toString() && u.username !== currentUser.username
+        );
+        const filtered = users
+          .map(normalizeContact)
+          .filter(Boolean)
+          .filter((u) => u.id !== currentUserId?.toString() && u.username !== currentUser.username);
+          .filter((u) => {
+            const userId = u._id?.toString() || u.id?.toString();
+            return userId !== currentUserId?.toString() && u.username !== currentUser.username;
+          })
+          .map((u) => ({
+            id: u._id?.toString() || u.id?.toString(),
+            username: u.username,
+            email: u.email || "",
+            profilePicUrl: u.profilePicUrl,
+            status: u.status
+          }));
         setContacts(filtered);
         onContactsLoaded?.(filtered.map((contact) => contact.id));
       })
@@ -61,6 +81,9 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
       })
       .finally(() => setLoading(false));
   }, [isNotCurrentUser, normalizeContact, onContactsLoaded]);
+  }, [currentUser.id, currentUser._id, currentUser.username, normalizeContact, onContactsLoaded]);
+//   }, [currentUser.id, currentUser._id, currentUser.username, onContactsLoaded]);
+  }, [currentUser.id, currentUser._id, currentUser.username,onContactsLoaded]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
