@@ -60,10 +60,10 @@ const isNotCurrentUser = useCallback((contact) => {
         setContacts([]);
       })
       .finally(() => setLoading(false));
-  }, [isNotCurrentUser, normalizeContact, onContactsLoaded]);
+  // }, [isNotCurrentUser, normalizeContact, onContactsLoaded]);
   }, [currentUser.id, currentUser._id, currentUser.username, normalizeContact, onContactsLoaded]);
 //   }, [currentUser.id, currentUser._id, currentUser.username, onContactsLoaded]);
-  }, [currentUser.id, currentUser._id, currentUser.username,onContactsLoaded]);
+  // }, [currentUser.id, currentUser._id, currentUser.username,onContactsLoaded]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
