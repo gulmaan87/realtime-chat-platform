@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { LogIn, Mail, Lock, AlertCircle } from "lucide-react";
 import "./Auth.css";
+import { clearSession, setSession } from "../services/session";
 
 const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
 
@@ -38,9 +39,9 @@ export default function Login() {
         return;
       }
 
-      // Save auth data
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      // Save auth data and reset any stale session details first
+      clearSession();
+      setSession({ token: data.token, user: data.user });
 
       // Redirect to chat
       window.location.href = "/";

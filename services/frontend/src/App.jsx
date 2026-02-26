@@ -32,15 +32,24 @@ export default function App() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  // Redirect to login if no token and trying to access chat or settings
-  if (!token && (currentPage === "chat" || currentPage === "settings")) {
-    window.location.href = "/login";
-    return null;
-  }
+  useEffect(() => {
+    // Redirect to login if no token and trying to access chat or settings
+    if (!token && (currentPage === "chat" || currentPage === "settings")) {
+      window.location.replace("/login");
+      return;
+    }
 
-  // Redirect to chat if has token and on login/signup
-  if (token && (currentPage === "login" || currentPage === "signup")) {
-    window.location.href = "/";
+    // Redirect to chat if has token and on login/signup
+    if (token && (currentPage === "login" || currentPage === "signup")) {
+      window.location.replace("/");
+    }
+  }, [currentPage, token]);
+
+  const isRedirecting =
+    (!token && (currentPage === "chat" || currentPage === "settings")) ||
+    (token && (currentPage === "login" || currentPage === "signup"));
+
+  if (isRedirecting) {
     return null;
   }
 
