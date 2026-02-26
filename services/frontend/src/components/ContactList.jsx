@@ -13,6 +13,21 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
   const [addSuccess, setAddSuccess] = useState(false);
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
 
+  const normalizeContact = useCallback((user) => {
+    if (!user || typeof user !== "object") return null;
+
+    const id = user._id?.toString() || user.id?.toString();
+    if (!id) return null;
+
+    return {
+      id,
+      username: user.username || "",
+      email: user.email || "",
+      profilePicUrl: user.profilePicUrl || "",
+      status: user.status || ""
+    };
+  }, []);
+
   const fetchContacts = useCallback(() => {
     setLoading(true);
     // Fetch only logged-in user's contacts
@@ -32,6 +47,9 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
         const users = Array.isArray(data) ? data : (data.users || []);
         const currentUserId = currentUser.id || currentUser._id;
         const filtered = users
+          .map(normalizeContact)
+          .filter(Boolean)
+          .filter((u) => u.id !== currentUserId?.toString() && u.username !== currentUser.username);
           .filter((u) => {
             const userId = u._id?.toString() || u.id?.toString();
             return userId !== currentUserId?.toString() && u.username !== currentUser.username;
@@ -51,6 +69,7 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
         setContacts([]);
       })
       .finally(() => setLoading(false));
+  }, [currentUser.id, currentUser._id, currentUser.username, normalizeContact, onContactsLoaded]);
 //   }, [currentUser.id, currentUser._id, currentUser.username, onContactsLoaded]);
   }, [currentUser.id, currentUser._id, currentUser.username,onContactsLoaded]);
 
@@ -87,6 +106,17 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
         setAddLoading(false);
         return;
       }
+      const createdContact = normalizeContact(data.contact);
+      if (createdContact) {
+        setContacts((prev) => {
+          const exists = prev.some((contact) => contact.id === createdContact.id);
+          if (exists) return prev;
+          const next = [...prev, createdContact];
+          onContactsLoaded?.(next.map((contact) => contact.id));
+          return next;
+        });
+      }
+
       setAddSuccess("Friend added!");
       setAddUsername("");
       fetchContacts();
@@ -176,7 +206,7 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
           <form onSubmit={handleAddFriend} className="add-friend-form">
             <input
               type="text"
-              placeholder="Enter username"
+              placeholder="Enter username or email"
               value={addUsername}
               onChange={(e) => setAddUsername(e.target.value)}
               className="add-friend-input"
