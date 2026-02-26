@@ -50,6 +50,17 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
           .map(normalizeContact)
           .filter(Boolean)
           .filter((u) => u.id !== currentUserId?.toString() && u.username !== currentUser.username);
+          .filter((u) => {
+            const userId = u._id?.toString() || u.id?.toString();
+            return userId !== currentUserId?.toString() && u.username !== currentUser.username;
+          })
+          .map((u) => ({
+            id: u._id?.toString() || u.id?.toString(),
+            username: u.username,
+            email: u.email || "",
+            profilePicUrl: u.profilePicUrl,
+            status: u.status
+          }));
         setContacts(filtered);
         onContactsLoaded?.(filtered.map((contact) => contact.id));
       })
@@ -59,6 +70,8 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
       })
       .finally(() => setLoading(false));
   }, [currentUser.id, currentUser._id, currentUser.username, normalizeContact, onContactsLoaded]);
+//   }, [currentUser.id, currentUser._id, currentUser.username, onContactsLoaded]);
+  }, [currentUser.id, currentUser._id, currentUser.username,onContactsLoaded]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
