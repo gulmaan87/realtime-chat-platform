@@ -61,7 +61,7 @@ const isNotCurrentUser = useCallback((contact) => {
       })
       .finally(() => setLoading(false));
   // }, [isNotCurrentUser, normalizeContact, onContactsLoaded]);
-  }, [currentUser.id, currentUser._id, currentUser.username, normalizeContact, onContactsLoaded]);
+  }, [currentUser.id, currentUser._id, currentUser.username, normalizeContact, onContactsLoaded,isNotCurrentUser]);
 //   }, [currentUser.id, currentUser._id, currentUser.username, onContactsLoaded]);
   // }, [currentUser.id, currentUser._id, currentUser.username,onContactsLoaded]);
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSocket } from "../services/socket";
 import { fetchChatHistory } from "../services/api";
 import { clearSession, getSession, getUserId } from "../services/session";
