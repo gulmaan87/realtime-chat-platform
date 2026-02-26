@@ -28,6 +28,11 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
     };
   }, []);
 
+const isNotCurrentUser = useCallback((contact) => {
+  const currentUserId = (currentUser.id || currentUser._id)?.toString();
+  return contact.id !== currentUserId && contact.username !== currentUser.username;
+}, [currentUser.id, currentUser._id, currentUser.username]);
+
   const fetchContacts = useCallback(() => {
     setLoading(true);
     // Fetch only logged-in user's contacts
@@ -45,6 +50,8 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
       .then((data) => {
         // Filter out current user and format contacts
         const users = Array.isArray(data) ? data : (data.users || []);
+        const normalizedUsers = users.map(normalizeContact).filter(Boolean);
+        const filtered = normalizedUsers.filter(isNotCurrentUser);
         const currentUserId = currentUser.id || currentUser._id;
         const normalizedUsers = users.map(normalizeContact).filter(Boolean);
         const filtered = normalizedUsers.filter(
@@ -73,6 +80,7 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
         setContacts([]);
       })
       .finally(() => setLoading(false));
+  }, [isNotCurrentUser, normalizeContact, onContactsLoaded]);
   }, [currentUser.id, currentUser._id, currentUser.username, normalizeContact, onContactsLoaded]);
 //   }, [currentUser.id, currentUser._id, currentUser.username, onContactsLoaded]);
   }, [currentUser.id, currentUser._id, currentUser.username,onContactsLoaded]);
