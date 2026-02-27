@@ -163,3 +163,16 @@
 }
 
 
+
+.auth-google-button {
+  background: linear-gradient(135deg, #ffffff, #f1f4f9);
+  color: #111827;
+  border: 1px solid #d1d5db;
+  box-shadow: none;
+}
+
+.auth-google-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+  background: linear-gradient(135deg, #ffffff, #e7edf7);
+}

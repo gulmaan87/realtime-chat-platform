@@ -10,6 +10,7 @@ const SCRYPT_BLOCK_SIZE = 8;
 const SCRYPT_PARALLELIZATION = 1;
 const KEY_LENGTH = 64;
 
+
 async function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
   const key = await scryptAsync(password, salt, KEY_LENGTH, {
@@ -53,6 +54,53 @@ async function verifyPassword(password, storedHash) {
   return timingSafeEqual(derivedBuffer, keyBuffer);
 }
 
+function issueAuthResponse(res, user, statusCode = 200) {
+  const token = jwt.sign(
+    { userId: user._id },
+    config.jwtSecret,
+    { expiresIn: config.jwtExpiresIn }
+  );
+
+  return res.status(statusCode).json({
+    token,
+    user: { id: user._id, username: user.username, email: user.email }
+  });
+}
+
+
+async function verifyGoogleIdToken(idToken) {
+  const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+  if (!response.ok) {
+    throw new Error("Unable to verify Google token");
+  }
+
+  const payload = await response.json();
+  if (payload.aud !== config.googleClientId) {
+    throw new Error("Google token audience mismatch");
+  }
+
+  return payload;
+}
+
+async function generateUniqueUsername(baseName = "google_user") {
+  const normalized = String(baseName)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 24) || "google_user";
+
+  let candidate = normalized;
+  let suffix = 0;
+
+  while (await User.findOne({ username: candidate })) {
+    suffix += 1;
+    candidate = `${normalized}_${suffix}`;
+  }
+
+  return candidate;
+}
+
 exports.signup = async (req, res) => {
   try {
     const { username, email, password } = req.body;
@@ -68,16 +116,7 @@ exports.signup = async (req, res) => {
 
     const user = await User.create({ username, email, passwordHash });
 
-    const token = jwt.sign(
-      { userId: user._id },
-      config.jwtSecret,
-      { expiresIn: config.jwtExpiresIn }
-    );
-
-    res.status(201).json({
-      token,
-      user: { id: user._id, username, email }
-    });
+    issueAuthResponse(res, user, 201);
   } catch (error) {
     console.error("Signup error:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -99,19 +138,49 @@ exports.login = async (req, res) => {
     if (!ok)
       return res.status(401).json({ message: "Invalid credentials" });
 
-    const token = jwt.sign(
-      { userId: user._id },
-      config.jwtSecret,
-      { expiresIn: config.jwtExpiresIn }
-    );
-
-    res.json({
-      token,
-      user: { id: user._id, username: user.username, email }
-    });
+    issueAuthResponse(res, user);
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+exports.googleAuth = async (req, res) => {
+  try {
+    if (!config.googleClientId) {
+      return res.status(500).json({ message: "Google OAuth is not configured" });
+    }
+
+    const { idToken } = req.body;
+    if (!idToken) {
+      return res.status(400).json({ message: "Google ID token is required" });
+    }
+
+    const payload = await verifyGoogleIdToken(idToken);
+    const email = payload?.email;
+    const emailVerified = payload?.email_verified === "true" || payload?.email_verified === true;
+
+    if (!email || !emailVerified) {
+      return res.status(401).json({ message: "Invalid Google account" });
+    }
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      const baseUsername = payload?.name || email.split("@")[0] || "google_user";
+      const username = await generateUniqueUsername(baseUsername);
+
+      user = await User.create({
+        username,
+        email,
+        passwordHash: `google_oauth$${payload.sub}`
+      });
+    }
+
+    issueAuthResponse(res, user);
+  } catch (error) {
+    console.error("Google auth error:", error);
+    res.status(401).json({ message: "Google authentication failed" });
   }
 };
 

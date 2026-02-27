@@ -28,10 +28,10 @@ export default function ContactList({ onSelect, activeChatUser, onContactsLoaded
     };
   }, []);
 
-const isNotCurrentUser = useCallback((contact) => {
-  const currentUserId = (currentUser.id || currentUser._id)?.toString();
-  return contact.id !== currentUserId && contact.username !== currentUser.username;
-}, [currentUser.id, currentUser._id, currentUser.username]);
+  const isNotCurrentUser = useCallback((contact) => {
+    const currentUserId = (currentUser.id || currentUser._id)?.toString();
+    return contact.id !== currentUserId && contact.username !== currentUser.username;
+  }, [currentUser.id, currentUser._id, currentUser.username]);
 
   const fetchContacts = useCallback(() => {
     setLoading(true);
