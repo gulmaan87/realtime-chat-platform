@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { LogIn, Mail, Lock, AlertCircle } from "lucide-react";
 import "./Auth.css";
+import { clearSession, setSession } from "../services/session";
+import { getGoogleCredential } from "../services/googleAuth";
 
 const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -38,15 +41,42 @@ export default function Login() {
         return;
       }
 
-      // Save auth data
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-
-      // Redirect to chat
+      clearSession();
+      setSession({ token: data.token, user: data.user });
       window.location.href = "/";
     } catch (err) {
       console.error("Login error:", err);
       setError("Server error. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setError("");
+    setLoading(true);
+
+    try {
+      const idToken = await getGoogleCredential(GOOGLE_CLIENT_ID);
+
+      const res = await fetch(`${AUTH_API_URL}/auth/google`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ idToken })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || "Google login failed");
+      }
+
+      clearSession();
+      setSession({ token: data.token, user: data.user });
+      window.location.href = "/";
+    } catch (err) {
+      console.error("Google login error:", err);
+      setError(err.message || "Google login failed");
       setLoading(false);
     }
   };
@@ -100,6 +130,15 @@ export default function Login() {
             className="auth-button"
           >
             {loading ? "Signing in..." : "Sign In"}
+          </button>
+
+          <button
+            type="button"
+            disabled={loading}
+            className="auth-button auth-google-button"
+            onClick={handleGoogleLogin}
+          >
+            Continue with Google
           </button>
         </form>
 
