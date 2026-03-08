@@ -40,26 +40,16 @@ module.exports = (io) => {
 
     socket.on("private_message", async ({ to, message }) => {
       const fromUserId = socket.userId;
+      const toUserId = to ? String(to) : "";
 
-      if (!fromUserId || !to || !message) {
+      if (!fromUserId || !toUserId || !message) {
         return;
       }
-
-      console.log(`PRIVATE MESSAGE ${fromUserId} -> ${to}: ${message}`);
-
-      const payload = {
-        from: fromUserId,
-        fromUserId,
-        to,
-        toUserId: to,
-        message,
-        timestamp: Date.now(),
-      };
 
       const roomId = [String(fromUserId), toUserId].sort().join(":");
       console.log(`PRIVATE MESSAGE ${fromUserId} -> ${toUserId}: ${message}`);
 
-      const payload = {
+      const messagePayload = {
         from: fromUserId,
         fromUserId,
         to: toUserId,
@@ -71,10 +61,10 @@ module.exports = (io) => {
 
       const targetSocketId = await redis.get(`user:${toUserId}`);
 
-      await publishMessage(payload);
+      await publishMessage(messagePayload);
 
       if (targetSocketId) {
-        io.to(targetSocketId).emit("private_message", payload);
+        io.to(targetSocketId).emit("private_message", messagePayload);
       } else {
         console.log(`User ${toUserId} is offline`);
       }
