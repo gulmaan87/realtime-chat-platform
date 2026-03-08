@@ -40,11 +40,21 @@ module.exports = (io) => {
 
     socket.on("private_message", async ({ to, message }) => {
       const fromUserId = socket.userId;
-      const toUserId = to ? String(to) : "";
 
-      if (!fromUserId || !toUserId || !message) {
+      if (!fromUserId || !to || !message) {
         return;
       }
+
+      console.log(`PRIVATE MESSAGE ${fromUserId} -> ${to}: ${message}`);
+
+      const payload = {
+        from: fromUserId,
+        fromUserId,
+        to,
+        toUserId: to,
+        message,
+        timestamp: Date.now(),
+      };
 
       const roomId = [String(fromUserId), toUserId].sort().join(":");
       console.log(`PRIVATE MESSAGE ${fromUserId} -> ${toUserId}: ${message}`);
