@@ -56,12 +56,27 @@ module.exports = (io) => {
         timestamp: Date.now(),
       };
 
-      const targetSocketId = await redis.get(`user:${to}`);
+      const roomId = [String(fromUserId), toUserId].sort().join(":");
+      console.log(`PRIVATE MESSAGE ${fromUserId} -> ${toUserId}: ${message}`);
+
+      const payload = {
+        from: fromUserId,
+        fromUserId,
+        to: toUserId,
+        toUserId,
+        roomId,
+        message,
+        timestamp: Date.now(),
+      };
+
+      const targetSocketId = await redis.get(`user:${toUserId}`);
+
+      await publishMessage(payload);
 
       if (targetSocketId) {
         io.to(targetSocketId).emit("private_message", payload);
       } else {
-        console.log(`User ${to} is offline`);
+        console.log(`User ${toUserId} is offline`);
       }
     });
 

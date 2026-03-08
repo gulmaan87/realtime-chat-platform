@@ -19,6 +19,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const userId = getUserId(user);
   const socketRef = useRef(null);
   const chatPartnerId = useMemo(() => activeChatUser?.id || activeChatUser?._id || null, [activeChatUser]);
+  const activeChatOnline = chatPartnerId ? Boolean(onlineStatuses[String(chatPartnerId)]) : false;
   const sharedMedia = [
     "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=300&h=300&fit=crop",
     "https://images.unsplash.com/photo-1493666438817-866a91353ca9?w=300&h=300&fit=crop",
@@ -102,7 +103,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       }
 
       try {
-        const data = await fetchChatHistory(chatPartnerId);
+        const data = await fetchChatHistory(userId, chatPartnerId);
         if (isMounted) {
           setMessages(data.messages || []);
         }
@@ -116,7 +117,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     return () => {
       isMounted = false;
     };
-  }, [chatPartnerId]);
+  }, [chatPartnerId, userId]);
 
   function sendMessage() {
     if (!text.trim() || !isConnected) return;
@@ -260,12 +261,12 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
               >
                 <span>{activeChatUser ? getInitials(activeChatUser.username || activeChatUser.email) : "?"}</span>
               </div>
-              {isConnected && <div className="online-indicator"></div>}
+              {activeChatUser && activeChatOnline && <div className="online-indicator"></div>}
             </div>
             <div className="header-info">
               <h2>{activeChatUser?.username || activeChatUser?.email || "Select User"}</h2>
               <p className="status-text">
-                {isConnected ? "Online" : "Connecting..."}
+                {!activeChatUser ? "Select a contact" : activeChatOnline ? "Online" : "Offline"}
               </p>
             </div>
           </div>
