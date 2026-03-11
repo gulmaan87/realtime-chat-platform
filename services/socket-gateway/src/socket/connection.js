@@ -70,6 +70,44 @@ module.exports = (io) => {
       }
     });
 
+
+    socket.on("typing_metadata", async ({ toUserId, metadata }) => {
+      const fromUserId = socket.userId;
+      const targetUserId = toUserId ? String(toUserId) : "";
+
+      if (!fromUserId || !targetUserId || !metadata || typeof metadata !== "object") {
+        return;
+      }
+
+      const targetSocketId = await redis.get(`user:${targetUserId}`);
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit("typing_metadata", {
+        fromUserId,
+        toUserId: targetUserId,
+        metadata,
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on("typing_stop", async ({ toUserId }) => {
+      const fromUserId = socket.userId;
+      const targetUserId = toUserId ? String(toUserId) : "";
+
+      if (!fromUserId || !targetUserId) {
+        return;
+      }
+
+      const targetSocketId = await redis.get(`user:${targetUserId}`);
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit("typing_stop", {
+        fromUserId,
+        toUserId: targetUserId,
+        timestamp: Date.now(),
+      });
+    });
+
     socket.on("send_message", async (data) => {
       await publishMessage({
         sender: data.sender || socket.id,

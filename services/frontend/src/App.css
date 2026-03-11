@@ -813,3 +813,82 @@
     padding: 6px;
   }
 }
+
+.typing-emotion-indicator {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #b8c7d1;
+  letter-spacing: 0.01em;
+}
+
+.chat-mood-chip {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: #c8d2de;
+}
+
+.chat-app {
+  position: relative;
+  overflow: hidden;
+}
+
+.chat-app,
+.chat-container,
+.messages-container {
+  transition: background 420ms ease, box-shadow 320ms ease;
+}
+
+.chat-app.mood-happy {
+  background: radial-gradient(circle at top left, #20323d 0, #0a1316 52%, #020308 100%);
+}
+
+.chat-app.mood-sad {
+  background: radial-gradient(circle at top left, #1a1f2d 0, #080b12 56%, #030409 100%);
+}
+
+.chat-app.mood-angry {
+  background: radial-gradient(circle at top left, #36191b 0, #15090d 52%, #040305 100%);
+}
+
+.chat-app.mood-romantic {
+  background: radial-gradient(circle at top left, #2a1730 0, #120916 55%, #040305 100%);
+}
+
+.chat-app.mood-neutral {
+  background: radial-gradient(circle at top left, #252b3c 0, #05070b 50%, #020308 100%);
+}
+
+.chat-app.mood-happy .chat-main {
+  box-shadow: 0 0 40px rgba(138, 226, 255, 0.12);
+}
+
+.chat-app.mood-angry .chat-main {
+  box-shadow: 0 0 35px rgba(255, 59, 48, 0.16);
+}
+
+.mood-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.2) 0, transparent 14%),
+    radial-gradient(circle at 82% 30%, rgba(255, 192, 214, 0.2) 0, transparent 13%),
+    radial-gradient(circle at 66% 72%, rgba(166, 231, 255, 0.18) 0, transparent 14%);
+  animation: floatParticles 16s linear infinite;
+}
+
+@keyframes floatParticles {
+  0% { transform: translateY(0); opacity: 0.35; }
+  50% { transform: translateY(-8px); opacity: 0.5; }
+  100% { transform: translateY(0); opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-app,
+  .chat-container,
+  .messages-container,
+  .mood-particles {
+    transition: none;
+    animation: none;
+  }
+}

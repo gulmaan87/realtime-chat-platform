@@ -17,6 +17,8 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
+  const [moodThemeEnabled, setMoodThemeEnabled] = useState(() => localStorage.getItem("feature:moodThemeEnabled") !== "false");
+  const [typingEmotionEnabled, setTypingEmotionEnabled] = useState(() => localStorage.getItem("feature:typingEmotionEnabled") !== "false");
   const token = localStorage.getItem("token");
 
   const profileImageUrl = useMemo(() => {
@@ -101,6 +103,14 @@ export default function Settings() {
         setLoading(false);
       });
   }, [token]);
+
+  useEffect(() => {
+    localStorage.setItem("feature:moodThemeEnabled", String(moodThemeEnabled));
+  }, [moodThemeEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem("feature:typingEmotionEnabled", String(typingEmotionEnabled));
+  }, [typingEmotionEnabled]);
 
   const saveStatus = async () => {
     if (!token) return;
@@ -330,6 +340,45 @@ export default function Settings() {
                   <span className="info-label">Email Address</span>
                   <span className="info-value">{profile?.email}</span>
                 </div>
+              </div>
+            </div>
+
+
+            <div className="settings-section">
+              <div className="section-header">
+                <h3 className="section-title">
+                  <MessageSquare size={20} />
+                  Chat Experience
+                </h3>
+                <p className="section-description">
+                  Tune premium interaction features for mood themes and typing emotion indicators
+                </p>
+              </div>
+
+              <div className="feature-toggle-list">
+                <label className="feature-toggle-item">
+                  <span>
+                    <strong>Mood-based chat theme</strong>
+                    <small>Auto-switch ambient gradients based on recent conversation sentiment</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={moodThemeEnabled}
+                    onChange={(e) => setMoodThemeEnabled(e.target.checked)}
+                  />
+                </label>
+
+                <label className="feature-toggle-item">
+                  <span>
+                    <strong>Live typing emotion indicator</strong>
+                    <small>Show privacy-safe typing tone like excitedly, carefully, or aggressively</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={typingEmotionEnabled}
+                    onChange={(e) => setTypingEmotionEnabled(e.target.checked)}
+                  />
+                </label>
               </div>
             </div>
 
