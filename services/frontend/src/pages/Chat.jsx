@@ -68,6 +68,10 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const typingMetricsRef = useRef({
     lastValue: "",
     lastTimestamp: 0,
+    backspaceCount: 0,
+    punctuationCount: 0,
+    capsCount: 0,
+    alphaCount: 0,
   });
   const typingEmitCooldownRef = useRef(0);
   const typingStopTimerRef = useRef(null);
@@ -81,9 +85,13 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
   const moodThemeEnabled = localStorage.getItem(MOOD_THEME_TOGGLE_KEY) !== "false";
   const typingEmotionEnabled = localStorage.getItem(TYPING_EMOTION_TOGGLE_KEY) !== "false";
-  const reactionSoundEnabled = localStorage.getItem(REACTION_SOUND_TOGGLE_KEY) !== "false";
 
-  const moodResult = useMemo(() => (moodThemeEnabled ? analyzeConversationMood(messages) : { mood: "neutral", confidence: 0 }), [messages, moodThemeEnabled]);
+  const moodResult = useMemo(() => {
+    if (!moodThemeEnabled) {
+      return { mood: "neutral", confidence: 0 };
+    }
+    return analyzeConversationMood(messages);
+  }, [messages, moodThemeEnabled]);
 
   const sharedMedia = [
     "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=300&h=300&fit=crop",
@@ -96,7 +104,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   }, [messages]);
 
   useEffect(() => {
-    if (!typingMetricsRef.current.lastTimestamp) typingMetricsRef.current.lastTimestamp = Date.now();
+    if (!typingMetricsRef.current.lastTimestamp) {
+      typingMetricsRef.current.lastTimestamp = Date.now();
+    }
   }, []);
 
   useEffect(() => {
@@ -159,8 +169,23 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
     currentSocket.on("typing_metadata", (payload) => {
       if (!payload || String(payload.fromUserId) !== String(chatPartnerId)) return;
-      const label = !typingEmotionEnabled ? "typing…" : classifyTypingEmotion(payload.metadata || {}).label;
-      setTypingState({ label, expiresAt: Date.now() + 2200 });
+      if (!typingEmotionEnabled) {
+        setTypingState({ label: "typing…", expiresAt: Date.now() + 2200 });
+        return;
+      }
+
+      const result = classifyTypingEmotion(payload.metadata || {});
+      setTypingState({ label: result.label, expiresAt: Date.now() + 2200 });
+    });
+
+    currentSocket.on("typing_stop", ({ fromUserId }) => {
+      if (String(fromUserId) === String(chatPartnerId)) {
+        setTypingState(null);
+      }
+    });
+
+    currentSocket.on("disconnect", () => {
+      setIsConnected(false);
     });
 
     currentSocket.on("typing_stop", ({ fromUserId }) => {
@@ -171,7 +196,13 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     currentSocket.connect();
 
     return () => {
-      ["connect", "private_message", "message_reaction", "secret_unlock", "presence_update", "presence_snapshot", "typing_metadata", "typing_stop", "disconnect"].forEach((eventName) => currentSocket.off(eventName));
+      currentSocket.off("connect");
+      currentSocket.off("private_message");
+      currentSocket.off("presence_update");
+      currentSocket.off("presence_snapshot");
+      currentSocket.off("typing_metadata");
+      currentSocket.off("typing_stop");
+      currentSocket.off("disconnect");
       currentSocket.disconnect();
       if (socketRef.current === currentSocket) socketRef.current = null;
     };
@@ -237,8 +268,16 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       reactions: {},
     };
 
-    socketRef.current?.emit("private_message", baseMessage);
-    setMessages((prev) => [...prev, { ...baseMessage, self: true }]);
+    socketRef.current?.emit("private_message", messageData);
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        ...messageData,
+        self: true,
+      },
+    ]);
+
     socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId });
     setText("");
     setSecretMode(false);
@@ -335,22 +374,54 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     });
   }, [chatPartnerId]);
 
-  const shouldShowAvatar = (list, index) => {
+  function shouldShowAvatar(messageList, index) {
     if (index === 0) return true;
-    const cur = list[index];
-    const prev = list[index - 1];
-    if (!cur || !prev) return true;
-    return (cur.from || cur.sender) !== (prev.from || prev.sender);
-  };
+    const current = messageList[index];
+    const previous = messageList[index - 1];
 
-  const shouldGroupMessages = (list, index) => {
+    if (typeof current === "string" || typeof previous === "string") return true;
+
+    const currentSender = current.from || current.sender || current.message;
+    const previousSender = previous.from || previous.sender || previous.message;
+
+    return currentSender !== previousSender;
+  }
+
+  function shouldGroupMessages(messageList, index) {
     if (index === 0) return false;
-    const cur = list[index];
-    const prev = list[index - 1];
-    if (!cur || !prev) return false;
-    const sameSender = (cur.from || cur.sender) === (prev.from || prev.sender);
-    return sameSender && Math.abs(Number(cur.timestamp || 0) - Number(prev.timestamp || 0)) < 300000;
-  };
+    const current = messageList[index];
+    const previous = messageList[index - 1];
+
+    if (typeof current === "string" || typeof previous === "string") return false;
+
+    const currentSender = current.from || current.sender || current.message;
+    const previousSender = previous.from || previous.sender || previous.message;
+    const currentTimestamp = Number(current.timestamp || 0);
+    const previousTimestamp = Number(previous.timestamp || 0);
+    const timeDiff = currentTimestamp - previousTimestamp;
+
+    return currentSender === previousSender && Math.abs(timeDiff) < 300000;
+  }
+
+  function getInitials(name) {
+    if (!name) return "?";
+    const parts = name.split(" ");
+    if (parts.length > 1) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  }
+
+  function getAvatarColor(name) {
+    const colors = [
+      "#0084ff", "#ff6b6b", "#4ecdc4", "#45b7d1",
+      "#f9ca24", "#6c5ce7", "#a29bfe", "#fd79a8",
+      "#00b894", "#e17055", "#0984e3", "#00cec9",
+    ];
+    if (!name) return colors[0];
+    const index = name.charCodeAt(0) % colors.length;
+    return colors[index];
+  }
 
   const getInitials = (name = "") => {
     const parts = String(name).split(" ").filter(Boolean);
@@ -361,6 +432,56 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const getAvatarColor = (name = "") => {
     const colors = ["#0084ff", "#ff6b6b", "#4ecdc4", "#45b7d1", "#f9ca24", "#6c5ce7"];
     return colors[name.charCodeAt(0) % colors.length] || colors[0];
+  };
+
+  const handleTypingInput = (value) => {
+    const now = Date.now();
+    const previous = typingMetricsRef.current;
+    const prevLength = previous.lastValue.length;
+    const currentLength = value.length;
+    const removed = Math.max(0, prevLength - currentLength);
+    const added = Math.max(0, currentLength - prevLength);
+    const interval = now - previous.lastTimestamp;
+
+    const newTextChunk = added > 0 ? value.slice(-added) : "";
+    const punctuationDelta = (newTextChunk.match(/[!?.,;:]/g) || []).length;
+    const upperAlphaDelta = (newTextChunk.match(/[A-Z]/g) || []).length;
+    const alphaDelta = (newTextChunk.match(/[A-Za-z]/g) || []).length;
+
+    previous.backspaceCount += removed;
+    previous.punctuationCount += punctuationDelta;
+    previous.capsCount += upperAlphaDelta;
+    previous.alphaCount += alphaDelta;
+    previous.lastValue = value;
+    previous.lastTimestamp = now;
+
+    if (!chatPartnerId || !socketRef.current) return;
+
+    if (typingStopTimerRef.current) {
+      clearTimeout(typingStopTimerRef.current);
+    }
+
+    typingStopTimerRef.current = setTimeout(() => {
+      socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId });
+    }, 1600);
+
+    if (now - typingEmitCooldownRef.current < 750) return;
+    typingEmitCooldownRef.current = now;
+
+    const metadata = buildTypingMetadata({
+      charDelta: added,
+      intervalMs: interval,
+      backspaceDelta: removed,
+      pauseMs: interval,
+      punctuationDelta,
+      capsDelta: upperAlphaDelta,
+      alphaDelta,
+    });
+
+    socketRef.current.emit("typing_metadata", {
+      toUserId: chatPartnerId,
+      metadata,
+    });
   };
 
   return (
@@ -387,31 +508,52 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
           <div className="chat-header">
             <div className="header-left">
               <div className="avatar-container">
-                <div className="avatar" style={{ backgroundColor: getAvatarColor(activeChatUser?.username || activeChatUser?.email || "Chat") }}>
+                <div
+                  className="avatar"
+                  style={{ backgroundColor: getAvatarColor(activeChatUser?.username || activeChatUser?.email || "Chat") }}
+                >
                   <span>{activeChatUser ? getInitials(activeChatUser.username || activeChatUser.email) : "?"}</span>
                 </div>
-                {activeChatUser && activeChatOnline && <div className="online-indicator" />}
+                {activeChatUser && activeChatOnline && <div className="online-indicator"></div>}
               </div>
               <div className="header-info">
                 <h2>{activeChatUser?.username || activeChatUser?.email || "Select User"}</h2>
-                <p className="status-text">{!activeChatUser ? "Select a contact" : activeChatOnline ? "Online" : "Offline"}</p>
+                <p className="status-text">
+                  {!activeChatUser ? "Select a contact" : activeChatOnline ? "Online" : "Offline"}
+                </p>
                 {activeChatUser && typingState?.label ? <p className="typing-emotion-indicator">{typingState.label}</p> : null}
               </div>
             </div>
             <div className="header-actions">
-              <button className="icon-button" onClick={() => { clearSession(); socketRef.current?.disconnect(); window.location.href = "/login"; }} title="Logout"><LogOut size={20} /></button>
-              <button className="icon-button" onClick={() => window.location.href = "/settings"}><Settings size={20} /></button>
+              <button className="icon-button" onClick={handleLogout} title="Logout">
+                <LogOut size={20} />
+              </button>
+              <button className="icon-button" onClick={() => window.location.href = "/settings"}>
+                <Settings size={20} />
+              </button>
             </div>
           </div>
 
           <div className="messages-container">
             <div className="messages-wrapper">
               {!activeChatUser ? (
-                <div className="empty-state"><div className="empty-icon">👤</div><h3>Select a user to chat</h3><p>Choose a contact from the sidebar to start messaging</p></div>
+                <div className="empty-state">
+                  <div className="empty-icon">👤</div>
+                  <h3>Select a user to chat</h3>
+                  <p>Choose a contact from the sidebar to start messaging</p>
+                </div>
               ) : messages.length === 0 ? (
-                <div className="empty-state"><div className="empty-icon">💬</div><h3>No messages yet</h3><p>Start the conversation with {activeChatUser.username || activeChatUser.email}!</p></div>
+                <div className="empty-state">
+                  <div className="empty-icon">💬</div>
+                  <h3>No messages yet</h3>
+                  <p>Start the conversation with {activeChatUser.username || activeChatUser.email}!</p>
+                </div>
               ) : (
-                messages.map((messageData, i) => {
+                messages.map((m, i) => {
+                  const messageData = typeof m === "string"
+                    ? { message: m, timestamp: 0 }
+                    : m;
+
                   const own = isOwnMessage(messageData);
                   const showAvatar = !own && shouldShowAvatar(messages, i);
                   const grouped = shouldGroupMessages(messages, i);
@@ -460,7 +602,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                   );
                 })
               )}
-              <div ref={messagesEndRef} />
+              <div ref={messagesEndRef}></div>
             </div>
           </div>
 
@@ -510,7 +652,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             <div className="details-avatar" style={{ backgroundColor: getAvatarColor(activeChatUser?.username || activeChatUser?.email || "User") }}>{getInitials(activeChatUser?.username || activeChatUser?.email || "U")}</div>
             <h3>{activeChatUser?.username || "No chat selected"}</h3>
             <p>{activeChatUser?.email || "Select a contact to view details"}</p>
-            {moodThemeEnabled ? <p className="chat-mood-chip">Mood: {moodResult.mood} · {Math.round(moodResult.confidence * 100)}%</p> : null}
+            {moodThemeEnabled ? (
+              <p className="chat-mood-chip">Mood: {moodResult.mood} · {Math.round(moodResult.confidence * 100)}%</p>
+            ) : null}
           </div>
 
           <div className="details-section">
