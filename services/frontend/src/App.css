@@ -813,3 +813,197 @@
     padding: 6px;
   }
 }
+
+.typing-emotion-indicator {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #b8c7d1;
+  letter-spacing: 0.01em;
+}
+
+.chat-mood-chip {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: #c8d2de;
+}
+
+.chat-app {
+  position: relative;
+  overflow: hidden;
+}
+
+.chat-app,
+.chat-container,
+.messages-container {
+  transition: background 420ms ease, box-shadow 320ms ease;
+}
+
+.chat-app.mood-happy {
+  background: radial-gradient(circle at top left, #20323d 0, #0a1316 52%, #020308 100%);
+}
+
+.chat-app.mood-sad {
+  background: radial-gradient(circle at top left, #1a1f2d 0, #080b12 56%, #030409 100%);
+}
+
+.chat-app.mood-angry {
+  background: radial-gradient(circle at top left, #36191b 0, #15090d 52%, #040305 100%);
+}
+
+.chat-app.mood-romantic {
+  background: radial-gradient(circle at top left, #2a1730 0, #120916 55%, #040305 100%);
+}
+
+.chat-app.mood-neutral {
+  background: radial-gradient(circle at top left, #252b3c 0, #05070b 50%, #020308 100%);
+}
+
+.chat-app.mood-happy .chat-main {
+  box-shadow: 0 0 40px rgba(138, 226, 255, 0.12);
+}
+
+.chat-app.mood-angry .chat-main {
+  box-shadow: 0 0 35px rgba(255, 59, 48, 0.16);
+}
+
+.mood-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.2) 0, transparent 14%),
+    radial-gradient(circle at 82% 30%, rgba(255, 192, 214, 0.2) 0, transparent 13%),
+    radial-gradient(circle at 66% 72%, rgba(166, 231, 255, 0.18) 0, transparent 14%);
+  animation: floatParticles 16s linear infinite;
+}
+
+@keyframes floatParticles {
+  0% { transform: translateY(0); opacity: 0.35; }
+  50% { transform: translateY(-8px); opacity: 0.5; }
+  100% { transform: translateY(0); opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-app,
+  .chat-container,
+  .messages-container,
+  .mood-particles {
+    transition: none;
+    animation: none;
+  }
+}
+
+.smart-reply-row {
+  margin-bottom: 10px;
+}
+
+.smart-reply-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #b8c7d1;
+  margin-bottom: 8px;
+}
+
+.smart-reply-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.smart-reply-card {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e9edef;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.smart-reply-card:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.secret-mode-toggle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: #101622;
+  color: #b8c7d1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.secret-mode-toggle.active {
+  color: #fff;
+  background: linear-gradient(145deg, #6b49d7, #8c66ff);
+}
+
+.secret-preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.secret-title {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.secret-unlock-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.18);
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.message-reactions {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reaction-chip {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  border-radius: 999px;
+  padding: 2px 6px;
+  font-size: 12px;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.reaction-chip.mine {
+  border-color: rgba(139, 210, 255, 0.8);
+  background: rgba(66, 169, 245, 0.24);
+}
+
+.reaction-chip:hover {
+  transform: scale(1.08);
+}
+
+.reaction-pulse {
+  animation: reactionPulse 0.24s ease;
+}
+
+@keyframes reactionPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
