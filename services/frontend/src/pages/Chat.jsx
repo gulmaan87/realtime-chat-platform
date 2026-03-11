@@ -3,30 +3,57 @@ import { createSocket } from "../services/socket";
 import { fetchChatHistory } from "../services/api";
 import { clearSession, getSession, getUserId } from "../services/session";
 import ContactList from "../components/ContactList";
-import { Send, MoreVertical, Phone, Video, Search, CheckCheck, LogOut, Settings } from "lucide-react";
+import { Send, CheckCheck, LogOut, Settings } from "lucide-react";
+import { analyzeConversationMood } from "../services/sentimentService";
+import { buildTypingMetadata, classifyTypingEmotion } from "../services/typingEmotionService";
 import "../App.css";
+
+const MOOD_THEME_TOGGLE_KEY = "feature:moodThemeEnabled";
+const TYPING_EMOTION_TOGGLE_KEY = "feature:typingEmotionEnabled";
 
 export default function Chat({ activeChatUser, setActiveChatUser }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [onlineStatuses, setOnlineStatuses] = useState({});
+  const [typingState, setTypingState] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-  
+  const typingMetricsRef = useRef({
+    lastValue: "",
+    lastTimestamp: 0,
+    backspaceCount: 0,
+    punctuationCount: 0,
+    capsCount: 0,
+    alphaCount: 0,
+  });
+  const typingEmitCooldownRef = useRef(0);
+  const typingStopTimerRef = useRef(null);
+
   const { token, user } = getSession();
   const userName = user?.username || user?.email || "User";
   const userId = getUserId(user);
   const socketRef = useRef(null);
   const chatPartnerId = useMemo(() => activeChatUser?.id || activeChatUser?._id || null, [activeChatUser]);
   const activeChatOnline = chatPartnerId ? Boolean(onlineStatuses[String(chatPartnerId)]) : false;
+
+  const moodThemeEnabled = localStorage.getItem(MOOD_THEME_TOGGLE_KEY) !== "false";
+  const typingEmotionEnabled = localStorage.getItem(TYPING_EMOTION_TOGGLE_KEY) !== "false";
+
+  const moodResult = useMemo(() => {
+    if (!moodThemeEnabled) {
+      return { mood: "neutral", confidence: 0 };
+    }
+    return analyzeConversationMood(messages);
+  }, [messages, moodThemeEnabled]);
+
   const sharedMedia = [
     "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=300&h=300&fit=crop",
     "https://images.unsplash.com/photo-1493666438817-866a91353ca9?w=300&h=300&fit=crop",
     "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=300&h=300&fit=crop",
     "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=300&h=300&fit=crop",
     "https://images.unsplash.com/photo-1493666438817-866a91353ca9?w=300&h=300&fit=crop",
-    "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=300&h=300&fit=crop"
+    "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=300&h=300&fit=crop",
   ];
 
   const scrollToBottom = () => {
@@ -40,19 +67,23 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   }, [messages]);
 
   useEffect(() => {
+    if (!typingMetricsRef.current.lastTimestamp) {
+      typingMetricsRef.current.lastTimestamp = Date.now();
+    }
+  }, []);
+
+  useEffect(() => {
     if (!userId || !token) return;
 
     const currentSocket = createSocket(token);
     socketRef.current = currentSocket;
 
     currentSocket.on("connect", () => {
-      console.log("Connected as:", userName, "with id:", userId);
       currentSocket.emit("register");
       setIsConnected(true);
     });
 
     currentSocket.on("private_message", (msg) => {
-      console.log("Received private message:", msg);
       setMessages((prev) => [...prev, msg]);
     });
 
@@ -74,6 +105,23 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       });
     });
 
+    currentSocket.on("typing_metadata", (payload) => {
+      if (!payload || String(payload.fromUserId) !== String(chatPartnerId)) return;
+      if (!typingEmotionEnabled) {
+        setTypingState({ label: "typing…", expiresAt: Date.now() + 2200 });
+        return;
+      }
+
+      const result = classifyTypingEmotion(payload.metadata || {});
+      setTypingState({ label: result.label, expiresAt: Date.now() + 2200 });
+    });
+
+    currentSocket.on("typing_stop", ({ fromUserId }) => {
+      if (String(fromUserId) === String(chatPartnerId)) {
+        setTypingState(null);
+      }
+    });
+
     currentSocket.on("disconnect", () => {
       setIsConnected(false);
     });
@@ -85,13 +133,15 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       currentSocket.off("private_message");
       currentSocket.off("presence_update");
       currentSocket.off("presence_snapshot");
+      currentSocket.off("typing_metadata");
+      currentSocket.off("typing_stop");
       currentSocket.off("disconnect");
       currentSocket.disconnect();
       if (socketRef.current === currentSocket) {
         socketRef.current = null;
       }
     };
-  }, [token, userId, userName]);
+  }, [token, userId, userName, chatPartnerId, typingEmotionEnabled]);
 
   useEffect(() => {
     let isMounted = true;
@@ -119,6 +169,17 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     };
   }, [chatPartnerId, userId]);
 
+  useEffect(() => {
+    if (!typingState) return;
+    const timeout = setTimeout(() => {
+      if (typingState.expiresAt <= Date.now()) {
+        setTypingState(null);
+      }
+    }, 2400);
+
+    return () => clearTimeout(timeout);
+  }, [typingState]);
+
   function sendMessage() {
     if (!text.trim() || !isConnected) return;
     if (!chatPartnerId) {
@@ -137,7 +198,6 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
     socketRef.current?.emit("private_message", messageData);
 
-    // Optimistic UI update (sender side)
     setMessages((prev) => [
       ...prev,
       {
@@ -146,6 +206,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       },
     ]);
 
+    socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId });
     setText("");
     inputRef.current?.focus();
   }
@@ -169,10 +230,10 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
-  function shouldShowAvatar(messages, index) {
+  function shouldShowAvatar(messageList, index) {
     if (index === 0) return true;
-    const current = messages[index];
-    const previous = messages[index - 1];
+    const current = messageList[index];
+    const previous = messageList[index - 1];
 
     if (typeof current === "string" || typeof previous === "string") return true;
 
@@ -182,10 +243,10 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     return currentSender !== previousSender;
   }
 
-  function shouldGroupMessages(messages, index) {
+  function shouldGroupMessages(messageList, index) {
     if (index === 0) return false;
-    const current = messages[index];
-    const previous = messages[index - 1];
+    const current = messageList[index];
+    const previous = messageList[index - 1];
 
     if (typeof current === "string" || typeof previous === "string") return false;
 
@@ -195,7 +256,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     const previousTimestamp = Number(previous.timestamp || 0);
     const timeDiff = currentTimestamp - previousTimestamp;
 
-    return currentSender === previousSender && Math.abs(timeDiff) < 300000; // 5 minutes
+    return currentSender === previousSender && Math.abs(timeDiff) < 300000;
   }
 
   function getInitials(name) {
@@ -211,7 +272,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     const colors = [
       "#0084ff", "#ff6b6b", "#4ecdc4", "#45b7d1",
       "#f9ca24", "#6c5ce7", "#a29bfe", "#fd79a8",
-      "#00b894", "#e17055", "#0984e3", "#00cec9"
+      "#00b894", "#e17055", "#0984e3", "#00cec9",
     ];
     if (!name) return colors[0];
     const index = name.charCodeAt(0) % colors.length;
@@ -228,9 +289,59 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     return messageData.self === true || senderId === userId || messageData.from === userName;
   };
 
+  const handleTypingInput = (value) => {
+    const now = Date.now();
+    const previous = typingMetricsRef.current;
+    const prevLength = previous.lastValue.length;
+    const currentLength = value.length;
+    const removed = Math.max(0, prevLength - currentLength);
+    const added = Math.max(0, currentLength - prevLength);
+    const interval = now - previous.lastTimestamp;
+
+    const newTextChunk = added > 0 ? value.slice(-added) : "";
+    const punctuationDelta = (newTextChunk.match(/[!?.,;:]/g) || []).length;
+    const upperAlphaDelta = (newTextChunk.match(/[A-Z]/g) || []).length;
+    const alphaDelta = (newTextChunk.match(/[A-Za-z]/g) || []).length;
+
+    previous.backspaceCount += removed;
+    previous.punctuationCount += punctuationDelta;
+    previous.capsCount += upperAlphaDelta;
+    previous.alphaCount += alphaDelta;
+    previous.lastValue = value;
+    previous.lastTimestamp = now;
+
+    if (!chatPartnerId || !socketRef.current) return;
+
+    if (typingStopTimerRef.current) {
+      clearTimeout(typingStopTimerRef.current);
+    }
+
+    typingStopTimerRef.current = setTimeout(() => {
+      socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId });
+    }, 1600);
+
+    if (now - typingEmitCooldownRef.current < 750) return;
+    typingEmitCooldownRef.current = now;
+
+    const metadata = buildTypingMetadata({
+      charDelta: added,
+      intervalMs: interval,
+      backspaceDelta: removed,
+      pauseMs: interval,
+      punctuationDelta,
+      capsDelta: upperAlphaDelta,
+      alphaDelta,
+    });
+
+    socketRef.current.emit("typing_metadata", {
+      toUserId: chatPartnerId,
+      metadata,
+    });
+  };
+
   return (
-    <div className="chat-app">
-      {/* Chat Container */}
+    <div className={`chat-app ${moodThemeEnabled ? `mood-${moodResult.mood}` : "mood-neutral"}`}>
+      {moodThemeEnabled && ["romantic", "happy"].includes(moodResult.mood) ? <div className="mood-particles" aria-hidden="true" /> : null}
       <div className="chat-container">
         <aside className="app-rail">
           <div className="rail-top">
@@ -244,144 +355,134 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
           </div>
         </aside>
 
-        {/* Contact List Sidebar */}
         <div className="contact-list-sidebar">
           <ContactList onSelect={setActiveChatUser} activeChatUser={activeChatUser} onContactsLoaded={handleContactsLoaded} onlineStatuses={onlineStatuses} />
         </div>
 
-        {/* Main Chat Area */}
         <div className="chat-main">
-          {/* Header */}
           <div className="chat-header">
-          <div className="header-left">
-            <div className="avatar-container">
-              <div
-                className="avatar"
-                style={{ backgroundColor: getAvatarColor(activeChatUser?.username || activeChatUser?.email || "Chat") }}
-              >
-                <span>{activeChatUser ? getInitials(activeChatUser.username || activeChatUser.email) : "?"}</span>
+            <div className="header-left">
+              <div className="avatar-container">
+                <div
+                  className="avatar"
+                  style={{ backgroundColor: getAvatarColor(activeChatUser?.username || activeChatUser?.email || "Chat") }}
+                >
+                  <span>{activeChatUser ? getInitials(activeChatUser.username || activeChatUser.email) : "?"}</span>
+                </div>
+                {activeChatUser && activeChatOnline && <div className="online-indicator"></div>}
               </div>
-              {activeChatUser && activeChatOnline && <div className="online-indicator"></div>}
+              <div className="header-info">
+                <h2>{activeChatUser?.username || activeChatUser?.email || "Select User"}</h2>
+                <p className="status-text">
+                  {!activeChatUser ? "Select a contact" : activeChatOnline ? "Online" : "Offline"}
+                </p>
+                {activeChatUser && typingState?.label ? <p className="typing-emotion-indicator">{typingState.label}</p> : null}
+              </div>
             </div>
-            <div className="header-info">
-              <h2>{activeChatUser?.username || activeChatUser?.email || "Select User"}</h2>
-              <p className="status-text">
-                {!activeChatUser ? "Select a contact" : activeChatOnline ? "Online" : "Offline"}
-              </p>
-            </div>
-          </div>
-          <div className="header-actions">
-            <button className="icon-button" onClick={handleLogout} title="Logout">
-              <LogOut size={20} />
-            </button>
-            {/* <button className="icon-button">
-              <Video size={20} />
-            </button>
-            <button className="icon-button">
-              <Phone size={20} />
-            </button>
-            <button className="icon-button">
-              <Search size={20} />
-            </button> */}
-            <button className="icon-button" onClick={() => window.location.href = "/settings"}>
-              <Settings size={20} />
-            </button>
-          </div>
-        </div>
-
-          {/* Messages Area */}
-        <div className="messages-container">
-          <div className="messages-wrapper">
-            {!activeChatUser ? (
-              <div className="empty-state">
-                <div className="empty-icon">👤</div>
-                <h3>Select a user to chat</h3>
-                <p>Choose a contact from the sidebar to start messaging</p>
-              </div>
-            ) : messages.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">💬</div>
-                <h3>No messages yet</h3>
-                <p>Start the conversation with {activeChatUser.username || activeChatUser.email}!</p>
-              </div>
-            ) : (
-              messages.map((m, i) => {
-                const messageData = typeof m === "string"
-                  ? { message: m, timestamp: 0 }
-                  : m;
-
-                const own = isOwnMessage(messageData);
-                const showAvatar = !own && shouldShowAvatar(messages, i);
-                const grouped = shouldGroupMessages(messages, i);
-                const senderName = messageData.from || messageData.sender || "Anonymous";
-
-                return (
-                  <div
-                    key={i}
-                    className={`message-wrapper ${own ? "own" : "other"} ${grouped ? "grouped" : ""}`}
-                  >
-                    {showAvatar && !own && (
-                      <div
-                        className="message-avatar"
-                        style={{ backgroundColor: getAvatarColor(senderName) }}
-                      >
-                        {getInitials(senderName)}
-                      </div>
-                    )}
-                    {!showAvatar && !own && <div className="avatar-spacer"></div>}
-
-                    <div className="message-content">
-                      {!own && !grouped && (
-                        <div className="message-sender">{senderName}</div>
-                      )}
-                      <div className={`message-bubble ${own ? "sent" : "received"}`}>
-                        <div className="message-text">
-                          {messageData.message || m}
-                        </div>
-                        <div className="message-footer">
-                          <span className="message-time">
-                            {formatFullTime(messageData.timestamp)}
-                          </span>
-                          {own && (
-                            <span className="message-status">
-                              <CheckCheck size={14} />
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-            <div ref={messagesEndRef}></div>
-          </div>
-        </div>
-
-        {/* Input Area */}
-        <div className="input-container">
-          <div className="input-wrapper">
-            <div className="message-input-wrapper">
-              <input
-                ref={inputRef}
-                type="text"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder={!activeChatUser ? "Select a user to chat" : isConnected ? "Type a message" : "Connecting..."}
-                disabled={!isConnected || !activeChatUser}
-                className="message-input"
-              />
-              <button
-                onClick={sendMessage}
-                disabled={!text.trim() || !isConnected || !activeChatUser}
-                className="send-button"
-              >
-                <Send size={20} />
+            <div className="header-actions">
+              <button className="icon-button" onClick={handleLogout} title="Logout">
+                <LogOut size={20} />
+              </button>
+              <button className="icon-button" onClick={() => window.location.href = "/settings"}>
+                <Settings size={20} />
               </button>
             </div>
           </div>
-        </div>
+
+          <div className="messages-container">
+            <div className="messages-wrapper">
+              {!activeChatUser ? (
+                <div className="empty-state">
+                  <div className="empty-icon">👤</div>
+                  <h3>Select a user to chat</h3>
+                  <p>Choose a contact from the sidebar to start messaging</p>
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">💬</div>
+                  <h3>No messages yet</h3>
+                  <p>Start the conversation with {activeChatUser.username || activeChatUser.email}!</p>
+                </div>
+              ) : (
+                messages.map((m, i) => {
+                  const messageData = typeof m === "string"
+                    ? { message: m, timestamp: 0 }
+                    : m;
+
+                  const own = isOwnMessage(messageData);
+                  const showAvatar = !own && shouldShowAvatar(messages, i);
+                  const grouped = shouldGroupMessages(messages, i);
+                  const senderName = messageData.from || messageData.sender || "Anonymous";
+
+                  return (
+                    <div
+                      key={i}
+                      className={`message-wrapper ${own ? "own" : "other"} ${grouped ? "grouped" : ""}`}
+                    >
+                      {showAvatar && !own && (
+                        <div
+                          className="message-avatar"
+                          style={{ backgroundColor: getAvatarColor(senderName) }}
+                        >
+                          {getInitials(senderName)}
+                        </div>
+                      )}
+                      {!showAvatar && !own && <div className="avatar-spacer"></div>}
+
+                      <div className="message-content">
+                        {!own && !grouped && (
+                          <div className="message-sender">{senderName}</div>
+                        )}
+                        <div className={`message-bubble ${own ? "sent" : "received"}`}>
+                          <div className="message-text">
+                            {messageData.message || m}
+                          </div>
+                          <div className="message-footer">
+                            <span className="message-time">
+                              {formatFullTime(messageData.timestamp)}
+                            </span>
+                            {own && (
+                              <span className="message-status">
+                                <CheckCheck size={14} />
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={messagesEndRef}></div>
+            </div>
+          </div>
+
+          <div className="input-container">
+            <div className="input-wrapper">
+              <div className="message-input-wrapper">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={text}
+                  onChange={(e) => {
+                    setText(e.target.value);
+                    handleTypingInput(e.target.value);
+                  }}
+                  onKeyDown={handleKeyPress}
+                  placeholder={!activeChatUser ? "Select a user to chat" : isConnected ? "Type a message" : "Connecting..."}
+                  disabled={!isConnected || !activeChatUser}
+                  className="message-input"
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={!text.trim() || !isConnected || !activeChatUser}
+                  className="send-button"
+                >
+                  <Send size={20} />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <aside className="chat-details">
@@ -391,6 +492,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             </div>
             <h3>{activeChatUser?.username || "No chat selected"}</h3>
             <p>{activeChatUser?.email || "Select a contact to view details"}</p>
+            {moodThemeEnabled ? (
+              <p className="chat-mood-chip">Mood: {moodResult.mood} · {Math.round(moodResult.confidence * 100)}%</p>
+            ) : null}
           </div>
 
           <div className="details-section">
@@ -408,4 +512,3 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     </div>
   );
 }
-
