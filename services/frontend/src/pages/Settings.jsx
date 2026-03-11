@@ -19,6 +19,7 @@ export default function Settings() {
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
   const [moodThemeEnabled, setMoodThemeEnabled] = useState(() => localStorage.getItem("feature:moodThemeEnabled") !== "false");
   const [typingEmotionEnabled, setTypingEmotionEnabled] = useState(() => localStorage.getItem("feature:typingEmotionEnabled") !== "false");
+  const [reactionSoundEnabled, setReactionSoundEnabled] = useState(() => localStorage.getItem("feature:reactionSoundEnabled") !== "false");
   const token = localStorage.getItem("token");
 
   const profileImageUrl = useMemo(() => {
@@ -111,6 +112,10 @@ export default function Settings() {
   useEffect(() => {
     localStorage.setItem("feature:typingEmotionEnabled", String(typingEmotionEnabled));
   }, [typingEmotionEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem("feature:reactionSoundEnabled", String(reactionSoundEnabled));
+  }, [reactionSoundEnabled]);
 
   const saveStatus = async () => {
     if (!token) return;
@@ -377,6 +382,18 @@ export default function Settings() {
                     type="checkbox"
                     checked={typingEmotionEnabled}
                     onChange={(e) => setTypingEmotionEnabled(e.target.checked)}
+                  />
+                </label>
+
+                <label className="feature-toggle-item">
+                  <span>
+                    <strong>Reaction sound microfeedback</strong>
+                    <small>Play a subtle sound when you react to messages</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={reactionSoundEnabled}
+                    onChange={(e) => setReactionSoundEnabled(e.target.checked)}
                   />
                 </label>
               </div>

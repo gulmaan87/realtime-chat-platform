@@ -892,3 +892,118 @@
     animation: none;
   }
 }
+
+.smart-reply-row {
+  margin-bottom: 10px;
+}
+
+.smart-reply-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #b8c7d1;
+  margin-bottom: 8px;
+}
+
+.smart-reply-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.smart-reply-card {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e9edef;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.smart-reply-card:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.secret-mode-toggle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: #101622;
+  color: #b8c7d1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.secret-mode-toggle.active {
+  color: #fff;
+  background: linear-gradient(145deg, #6b49d7, #8c66ff);
+}
+
+.secret-preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.secret-title {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.secret-unlock-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.18);
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.message-reactions {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reaction-chip {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  border-radius: 999px;
+  padding: 2px 6px;
+  font-size: 12px;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.reaction-chip.mine {
+  border-color: rgba(139, 210, 255, 0.8);
+  background: rgba(66, 169, 245, 0.24);
+}
+
+.reaction-chip:hover {
+  transform: scale(1.08);
+}
+
+.reaction-pulse {
+  animation: reactionPulse 0.24s ease;
+}
+
+@keyframes reactionPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
