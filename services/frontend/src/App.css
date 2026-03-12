@@ -1218,3 +1218,85 @@
   background: rgba(255, 255, 255, 0.15);
   color: #fff;
 }
+
+.xp-badge {
+  font-size: 12px;
+  color: #9ad7ff;
+  margin-top: 2px;
+}
+
+.friendship-meter {
+  margin: 8px 16px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  background: rgba(33, 150, 243, 0.08);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.interactive-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.interactive-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.poll-option {
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.06);
+  color: inherit;
+  padding: 4px 10px;
+}
+
+.interactive-composer-toggle {
+  margin-bottom: 6px;
+}
+
+.interactive-composer-toggle button,
+.interactive-actions button {
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.08);
+  color: inherit;
+  padding: 6px 10px;
+}
+
+.interactive-composer-panel {
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.interactive-composer-panel input,
+.interactive-composer-panel textarea {
+  background: rgba(0,0,0,0.22);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.interactive-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.friendship-privacy-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 10px;
+}

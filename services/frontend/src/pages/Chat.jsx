@@ -1,14 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Send, CheckCheck, LogOut, Settings, Lock, Sparkles, Bot, RefreshCw } from "lucide-react";
+import {
+  Send,
+  CheckCheck,
+  LogOut,
+  Settings,
+  Lock,
+  Sparkles,
+  Bot,
+  RefreshCw,
+} from "lucide-react";
 import ContactList from "../components/ContactList";
 import { createSocket } from "../services/socket";
 import { fetchChatHistory } from "../services/api";
 import { clearSession, getSession, getUserId } from "../services/session";
 import { analyzeConversationMood } from "../services/sentimentService";
-import { buildTypingMetadata, classifyTypingEmotion } from "../services/typingEmotionService";
+import {
+  buildTypingMetadata,
+  classifyTypingEmotion,
+} from "../services/typingEmotionService";
 import { buildSmartReplies } from "../services/smartReplyService";
 import { getConversationSummary } from "../services/aiSummaryService";
-import { executeAssistantCommand, getCommandSuggestions } from "../services/assistantCommandService";
+import {
+  executeAssistantCommand,
+  getCommandSuggestions,
+} from "../services/assistantCommandService";
 import {
   detectIntentActions,
   detectScamSignals,
@@ -22,13 +37,18 @@ const REACTION_SOUND_TOGGLE_KEY = "feature:reactionSoundEnabled";
 const QUICK_REACTION_EMOJIS = ["👍", "❤️", "😂", "🔥", "😮"];
 
 function playReactionSound() {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return;
+
+  const ctx = new AudioCtx();
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
+
   osc.type = "triangle";
   osc.frequency.setValueAtTime(660, ctx.currentTime);
   gain.gain.setValueAtTime(0.04, ctx.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+
   osc.connect(gain);
   gain.connect(ctx.destination);
   osc.start();
@@ -50,20 +70,28 @@ function normalizeMessage(entry, fallbackIndex = 0) {
   const fromId = String(entry?.fromUserId || entry?.from || "unknown");
   const toId = String(entry?.toUserId || entry?.to || "unknown");
   const localId = String(
-    entry?.localId || entry?.clientMessageId || `${fromId}-${toId}-${timestamp}-${fallbackIndex}`
+    entry?.localId ||
+      entry?.clientMessageId ||
+      `${fromId}-${toId}-${timestamp}-${fallbackIndex}`
   );
 
   return {
     ...entry,
     localId,
     type: entry?.type || "text",
-    reactions: entry?.reactions && typeof entry.reactions === "object" ? entry.reactions : {},
+    reactions:
+      entry?.reactions && typeof entry.reactions === "object"
+        ? entry.reactions
+        : {},
   };
 }
 
 function toTime(ts) {
   if (!ts) return "";
-  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Date(ts).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function Chat({ activeChatUser, setActiveChatUser }) {
@@ -101,20 +129,32 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const userName = user?.username || user?.email || "User";
   const userId = getUserId(user);
 
-  const chatPartnerId = useMemo(() => activeChatUser?.id || activeChatUser?._id || null, [activeChatUser]);
-  const activeChatOnline = chatPartnerId ? Boolean(onlineStatuses[String(chatPartnerId)]) : false;
+  const chatPartnerId = useMemo(
+    () => activeChatUser?.id || activeChatUser?._id || null,
+    [activeChatUser]
+  );
+
+  const activeChatOnline = chatPartnerId
+    ? Boolean(onlineStatuses[String(chatPartnerId)])
+    : false;
 
   const roomId = useMemo(() => {
     if (!chatPartnerId || !userId) return "";
     return [String(chatPartnerId), String(userId)].sort().join(":");
   }, [chatPartnerId, userId]);
 
-  const moodThemeEnabled = localStorage.getItem(MOOD_THEME_TOGGLE_KEY) !== "false";
-  const typingEmotionEnabled = localStorage.getItem(TYPING_EMOTION_TOGGLE_KEY) !== "false";
-  const reactionSoundEnabled = localStorage.getItem(REACTION_SOUND_TOGGLE_KEY) !== "false";
+  const moodThemeEnabled =
+    localStorage.getItem(MOOD_THEME_TOGGLE_KEY) !== "false";
+  const typingEmotionEnabled =
+    localStorage.getItem(TYPING_EMOTION_TOGGLE_KEY) !== "false";
+  const reactionSoundEnabled =
+    localStorage.getItem(REACTION_SOUND_TOGGLE_KEY) !== "false";
 
   const moodResult = useMemo(
-    () => (moodThemeEnabled ? analyzeConversationMood(messages) : { mood: "neutral", confidence: 0 }),
+    () =>
+      moodThemeEnabled
+        ? analyzeConversationMood(messages)
+        : { mood: "neutral", confidence: 0 },
     [messages, moodThemeEnabled]
   );
 
@@ -141,7 +181,10 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   );
 
   useEffect(() => {
-    const timer = setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 60);
+    const timer = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 60);
+
     return () => clearTimeout(timer);
   }, [messages]);
 
@@ -159,8 +202,15 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       }
 
       setSummaryState((prev) => ({ ...prev, loading: true }));
+
       try {
-        const result = await getConversationSummary({ roomId, messages, activeChatUser, forceRefresh });
+        const result = await getConversationSummary({
+          roomId,
+          messages,
+          activeChatUser,
+          forceRefresh,
+        });
+
         setSummaryState({
           loading: false,
           summary: result.summary || "No summary generated.",
@@ -180,6 +230,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
   useEffect(() => {
     if (!roomId || messages.length === 0) return;
+
     const timer = setTimeout(() => refreshSummary(false), 0);
     return () => clearTimeout(timer);
   }, [refreshSummary, roomId, messages.length]);
@@ -221,10 +272,13 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       setMessages((prev) =>
         prev.map((entry) => {
           if (entry.localId !== messageId) return entry;
+
           const reactions = { ...(entry.reactions || {}) };
           const set = new Set(Array.isArray(reactions[emoji]) ? reactions[emoji] : []);
+
           if (action === "remove") set.delete(String(reactorUserId));
           else set.add(String(reactorUserId));
+
           reactions[emoji] = [...set];
           return { ...entry, reactions };
         })
@@ -233,6 +287,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
     socket.on("secret_unlock", ({ messageId, userId: unlockerId }) => {
       if (!messageId || !unlockerId) return;
+
       if (String(unlockerId) === String(userId)) {
         setUnlockedSecrets((prev) => ({ ...prev, [messageId]: true }));
       }
@@ -240,6 +295,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
     socket.on("presence_update", ({ userId: presenceUserId, status }) => {
       if (!presenceUserId) return;
+
       setOnlineStatuses((prev) => ({
         ...prev,
         [String(presenceUserId)]: status === "online",
@@ -251,18 +307,24 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
       setOnlineStatuses((prev) => {
         const next = { ...prev };
+
         snapshot.forEach(({ userId: presenceUserId, status }) => {
-          if (presenceUserId) next[String(presenceUserId)] = status === "online";
+          if (presenceUserId) {
+            next[String(presenceUserId)] = status === "online";
+          }
         });
+
         return next;
       });
     });
 
     socket.on("typing_metadata", (payload) => {
       if (!payload || String(payload.fromUserId) !== String(chatPartnerId)) return;
+
       const label = !typingEmotionEnabled
         ? "typing…"
         : classifyTypingEmotion(payload.metadata || {}).label;
+
       setTypingState({ label, expiresAt: Date.now() + 2200 });
     });
 
@@ -309,13 +371,18 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
         const data = await fetchChatHistory(userId, chatPartnerId);
         if (!mounted) return;
 
-        const normalized = (data.messages || []).map((entry, i) => normalizeMessage(entry, i));
+        const normalized = (data.messages || []).map((entry, i) =>
+          normalizeMessage(entry, i)
+        );
+
         setMessages(normalized);
         setSmartReplies(buildSmartReplies({ messages: normalized, activeChatUser }));
 
         const lastIncoming = [...normalized]
           .reverse()
-          .find((entry) => String(entry.fromUserId || entry.from) === String(chatPartnerId));
+          .find(
+            (entry) => String(entry.fromUserId || entry.from) === String(chatPartnerId)
+          );
 
         if (lastIncoming) {
           const scam = detectScamSignals(lastIncoming.message || "");
@@ -351,6 +418,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const isOwnMessage = useCallback(
     (messageData) => {
       const senderId = messageData.fromUserId || messageData.senderId || messageData.from;
+
       return (
         messageData.self === true ||
         String(senderId) === String(userId) ||
@@ -449,15 +517,19 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       const mine =
         Array.isArray(message.reactions?.[emoji]) &&
         message.reactions[emoji].includes(String(userId));
+
       const action = mine ? "remove" : "add";
 
       setMessages((prev) =>
         prev.map((entry) => {
           if (entry.localId !== messageId) return entry;
+
           const reactions = { ...(entry.reactions || {}) };
           const set = new Set(Array.isArray(reactions[emoji]) ? reactions[emoji] : []);
+
           if (action === "remove") set.delete(String(userId));
           else set.add(String(userId));
+
           reactions[emoji] = [...set];
           return { ...entry, reactions };
         })
@@ -507,6 +579,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     (message) => {
       if (!message?.secret?.oneTime) return true;
       if (secretViewed[message.localId]) return false;
+
       setSecretViewed((prev) => ({ ...prev, [message.localId]: true }));
       return true;
     },
@@ -539,6 +612,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       if (!chatPartnerId || !socketRef.current) return;
 
       if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
+
       typingStopTimerRef.current = setTimeout(() => {
         socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId });
       }, 1600);
@@ -571,6 +645,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
     const currentSender = current.from || current.sender;
     const previousSender = previous.from || previous.sender;
+
     return currentSender !== previousSender;
   };
 
@@ -594,7 +669,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
   const getInitials = (name = "") => {
     const parts = String(name).split(" ").filter(Boolean);
-    if (parts.length > 1) return (parts[0][0] + parts[1][0]).toUpperCase();
+    if (parts.length > 1) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
     return (parts[0] || "?").slice(0, 2).toUpperCase();
   };
 
@@ -620,7 +697,11 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   };
 
   return (
-    <div className={`chat-app ${moodThemeEnabled ? `mood-${moodResult.mood}` : "mood-neutral"}`}>
+    <div
+      className={`chat-app ${
+        moodThemeEnabled ? `mood-${moodResult.mood}` : "mood-neutral"
+      }`}
+    >
       {moodThemeEnabled && ["romantic", "happy"].includes(moodResult.mood) ? (
         <div className="mood-particles" aria-hidden="true" />
       ) : null}
@@ -628,10 +709,17 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       <div className="chat-container">
         <aside className="app-rail">
           <div className="rail-top">
-            <button className="rail-button active" aria-label="Chats">💬</button>
-            <button className="rail-button" aria-label="Contacts">👥</button>
-            <button className="rail-button" aria-label="Files">📁</button>
+            <button className="rail-button active" aria-label="Chats">
+              💬
+            </button>
+            <button className="rail-button" aria-label="Contacts">
+              👥
+            </button>
+            <button className="rail-button" aria-label="Files">
+              📁
+            </button>
           </div>
+
           <div className="rail-bottom">
             <button
               className="rail-button"
@@ -728,6 +816,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                 >
                   {showSafetyWhy ? "Hide why" : "Why this warning?"}
                 </button>
+
                 {showSafetyWhy ? (
                   <ul>
                     {safetyWarning.reasons.map((reason) => (
@@ -736,6 +825,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                   </ul>
                 ) : null}
               </div>
+
               <button className="safety-dismiss-btn" onClick={() => setSafetyWarning(null)}>
                 Dismiss
               </button>
@@ -762,14 +852,17 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                   const grouped = shouldGroupMessages(messages, i);
                   const showAvatar = !own && shouldShowAvatar(messages, i);
                   const senderName = messageData.from || messageData.sender || "Anonymous";
-                  const assistant = messageData.type === "assistant" || senderName === "assistant";
+                  const assistant =
+                    messageData.type === "assistant" || senderName === "assistant";
                   const isSecret = messageData.type === "secret";
                   const canReveal = own || unlockedSecrets[messageData.localId];
 
                   return (
                     <div
                       key={messageData.localId || i}
-                      className={`message-wrapper ${own ? "own" : "other"} ${grouped ? "grouped" : ""}`}
+                      className={`message-wrapper ${own ? "own" : "other"} ${
+                        grouped ? "grouped" : ""
+                      }`}
                     >
                       {showAvatar && !own ? (
                         <div
@@ -783,7 +876,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                       {!showAvatar && !own ? <div className="avatar-spacer" /> : null}
 
                       <div className="message-content">
-                        {!own && !grouped ? <div className="message-sender">{senderName}</div> : null}
+                        {!own && !grouped ? (
+                          <div className="message-sender">{senderName}</div>
+                        ) : null}
 
                         <div
                           className={`message-bubble ${own ? "sent" : "received"} ${
@@ -852,7 +947,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                                     <button
                                       key={intent.key}
                                       className="intent-chip"
-                                      onClick={() => dismissIntentChip(messageData.localId, intent.key)}
+                                      onClick={() =>
+                                        dismissIntentChip(messageData.localId, intent.key)
+                                      }
                                     >
                                       {intent.label} ✕
                                     </button>
@@ -967,7 +1064,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                     ) {
                       e.preventDefault();
                       setActiveCommandIndex((prev) => {
-                        if (e.key === "ArrowDown") return (prev + 1) % commandSuggestions.length;
+                        if (e.key === "ArrowDown") {
+                          return (prev + 1) % commandSuggestions.length;
+                        }
                         return prev === 0 ? commandSuggestions.length - 1 : prev - 1;
                       });
                       return;
@@ -1025,8 +1124,10 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             >
               {getInitials(activeChatUser?.username || activeChatUser?.email || "U")}
             </div>
+
             <h3>{activeChatUser?.username || "No chat selected"}</h3>
             <p>{activeChatUser?.email || "Select a contact to view details"}</p>
+
             {moodThemeEnabled ? (
               <p className="chat-mood-chip">
                 Mood: {moodResult.mood} · {Math.round(moodResult.confidence * 100)}%

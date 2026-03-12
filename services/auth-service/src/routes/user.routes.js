@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
 const auth = require("../middleware/auth.middleware");
-const { getMyProfile, updateStatus } = require("../controllers/user.controller");
+const { getMyProfile, updateStatus, updateFriendshipPrivacy } = require("../controllers/user.controller");
 const upload = require("../middleware/upload");
 
 // Wrapper to handle multer errors
@@ -68,5 +68,6 @@ router.post(
 
 router.get("/me", auth, getMyProfile);
 router.put("/me/status", auth, updateStatus);
+router.put("/me/privacy/friendship", auth, updateFriendshipPrivacy);
 
 module.exports = router;
