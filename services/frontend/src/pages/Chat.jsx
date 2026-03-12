@@ -55,18 +55,9 @@ function normalizeMessage(entry, fallbackIndex = 0) {
   };
 }
 
-function playReactionSound() {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = "triangle";
-  osc.frequency.setValueAtTime(660, ctx.currentTime);
-  gain.gain.setValueAtTime(0.04, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start();
-  osc.stop(ctx.currentTime + 0.12);
+function toTime(ts) {
+  if (!ts) return "";
+  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 export default function Chat({ activeChatUser, setActiveChatUser }) {
@@ -87,19 +78,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const typingMetricsRef = useRef({ lastValue: "", lastTimestamp: 0 });
-
-  const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
-  const typingMetricsRef = useRef({
-    lastValue: "",
-    lastTimestamp: 0,
-    backspaceCount: 0,
-    punctuationCount: 0,
-    capsCount: 0,
-    alphaCount: 0,
-  });
   const typingEmitCooldownRef = useRef(0);
   const typingStopTimerRef = useRef(null);
+  const socketRef = useRef(null);
 
   const { token, user } = getSession();
   const userName = user?.username || user?.email || "User";
@@ -276,27 +257,6 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       });
     });
 
-    currentSocket.on("message_reaction", ({ messageId, emoji, userId: reactorUserId, action }) => {
-      if (!messageId || !emoji || !reactorUserId) return;
-      setMessages((prev) => prev.map((entry) => {
-        if (entry.localId !== messageId) return entry;
-        const reactions = { ...(entry.reactions || {}) };
-        const current = new Set(Array.isArray(reactions[emoji]) ? reactions[emoji] : []);
-        if (action === "remove") current.delete(String(reactorUserId));
-        else current.add(String(reactorUserId));
-        reactions[emoji] = [...current];
-        return { ...entry, reactions };
-      }));
-    });
-
-    currentSocket.on("secret_unlock", ({ messageId, userId: unlockerId }) => {
-      if (messageId && unlockerId && String(unlockerId) === String(userId)) {
-      if (!messageId || !unlockerId) return;
-      if (String(unlockerId) === String(userId)) {
-        setUnlockedSecrets((prev) => ({ ...prev, [messageId]: true }));
-      }
-    });
-
     socket.on("message_reaction", ({ messageId, emoji, userId: reactorUserId, action }) => {
       if (!messageId || !emoji || !reactorUserId) return;
       setMessages((prev) => prev.map((entry) => {
@@ -358,17 +318,17 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   }, [token, userId, chatPartnerId, typingEmotionEnabled, activeChatUser]);
 
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
     async function loadHistory() {
       if (!chatPartnerId) return setMessages([]);
       try {
         const data = await fetchChatHistory(userId, chatPartnerId);
-        if (!isMounted) return;
-        const normalized = (data.messages || []).map((entry, index) => normalizeMessage(entry, index));
+        if (!mounted) return;
+        const normalized = (data.messages || []).map((entry, i) => normalizeMessage(entry, i));
         setMessages(normalized);
         setSmartReplies(buildSmartReplies({ messages: normalized, activeChatUser }));
-      } catch (error) {
-        console.error("Failed to load history:", error);
+      } catch {
+        if (mounted) setMessages([]);
       }
     }
     loadHistory();
@@ -542,49 +502,27 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       message: text.trim(),
       timestamp: now,
       type: secretMode ? "secret" : "text",
-      secret: secretMode
-        ? {
-            challenge: String((Math.floor(Math.random() * 9000) + 1000)),
-            hint: "Enter the 4-digit unlock code",
-            oneTime: true,
-          }
-        : undefined,
+      secret: secretMode ? {
+        challenge: String(Math.floor(Math.random() * 9000) + 1000),
+        hint: "Enter the 4-digit unlock code",
+        oneTime: true,
+      } : undefined,
       reactions: {},
     };
 
-    socketRef.current?.emit("private_message", baseMessage);
-    setMessages((prev) => [...prev, { ...baseMessage, self: true }]);
+    socketRef.current?.emit("private_message", payload);
+    setMessages((prev) => [...prev, { ...payload, self: true }]);
     socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId });
     setText("");
     setSecretMode(false);
     setCommandSuggestions([]);
     inputRef.current?.focus();
   }, [activeChatUser, chatPartnerId, isConnected, messages, roomId, secretMode, text, userId, userName]);
-    setText("");
-    setSecretMode(false);
-    setCommandSuggestions([]);
-    inputRef.current?.focus();
-  }, [activeChatUser, chatPartnerId, isConnected, messages, roomId, secretMode, text, userId, userName]);
-    socketRef.current?.emit("private_message", messageData);
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        ...messageData,
-        self: true,
-      },
-    ]);
-
-    socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId });
-    setText("");
-    setSecretMode(false);
-    inputRef.current?.focus();
-  }, [chatPartnerId, isConnected, secretMode, text, userId, userName]);
 
   const applyReaction = useCallback((message, emoji) => {
     const messageId = message.localId;
-    const alreadyReacted = Array.isArray(message.reactions?.[emoji]) && message.reactions[emoji].includes(String(userId));
-    const action = alreadyReacted ? "remove" : "add";
+    const mine = Array.isArray(message.reactions?.[emoji]) && message.reactions[emoji].includes(String(userId));
+    const action = mine ? "remove" : "add";
 
     setMessages((prev) => prev.map((entry) => {
       if (entry.localId !== messageId) return entry;
@@ -596,21 +534,12 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       return { ...entry, reactions };
     }));
 
-    socketRef.current?.emit("message_reaction", {
-      toUserId: chatPartnerId,
-      messageId,
-      emoji,
-      action,
-    });
+    socketRef.current?.emit("message_reaction", { toUserId: chatPartnerId, messageId, emoji, action });
 
     setReactionPulseId(messageId);
-    setTimeout(() => setReactionPulseId(null), 260);
+    setTimeout(() => setReactionPulseId(null), 250);
     if (reactionSoundEnabled) {
-      try {
-        playReactionSound();
-      } catch {
-        // Ignore browser audio restrictions.
-      }
+      try { playReactionSound(); } catch { /* ignore */ }
     }
   }, [chatPartnerId, reactionSoundEnabled, userId]);
 
@@ -636,38 +565,31 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const handleTypingInput = useCallback((value) => {
     const now = Date.now();
     const prev = typingMetricsRef.current;
-    const prevLength = prev.lastValue.length;
-    const currentLength = value.length;
-    const removed = Math.max(0, prevLength - currentLength);
-    const added = Math.max(0, currentLength - prevLength);
+    const added = Math.max(0, value.length - prev.lastValue.length);
+    const removed = Math.max(0, prev.lastValue.length - value.length);
     const interval = now - prev.lastTimestamp;
 
-    const newTextChunk = added > 0 ? value.slice(-added) : "";
-    const punctuationDelta = (newTextChunk.match(/[!?.,;:]/g) || []).length;
-    const upperAlphaDelta = (newTextChunk.match(/[A-Z]/g) || []).length;
-    const alphaDelta = (newTextChunk.match(/[A-Za-z]/g) || []).length;
+    const newChunk = added > 0 ? value.slice(-added) : "";
+    const punctuationDelta = (newChunk.match(/[!?.,;:]/g) || []).length;
+    const capsDelta = (newChunk.match(/[A-Z]/g) || []).length;
+    const alphaDelta = (newChunk.match(/[A-Za-z]/g) || []).length;
 
     prev.lastValue = value;
     prev.lastTimestamp = now;
 
     if (value.startsWith("/")) {
-      const suggestions = getCommandSuggestions(value);
-      setCommandSuggestions(suggestions);
+      setCommandSuggestions(getCommandSuggestions(value));
       setActiveCommandIndex(0);
     } else {
       setCommandSuggestions([]);
     }
 
     if (!chatPartnerId || !socketRef.current) return;
-    if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
-    typingStopTimerRef.current = setTimeout(() => socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId }), 1600);
 
-    if (!chatPartnerId || !socketRef.current) return;
     if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
-    typingStopTimerRef.current = setTimeout(() => socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId }), 1600);
-    if (!chatPartnerId || !socketRef.current) return;
-    if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
-    typingStopTimerRef.current = setTimeout(() => socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId }), 1600);
+    typingStopTimerRef.current = setTimeout(() => {
+      socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId });
+    }, 1600);
 
     if (now - typingEmitCooldownRef.current < 750) return;
     typingEmitCooldownRef.current = now;
@@ -680,29 +602,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
         backspaceDelta: removed,
         pauseMs: interval,
         punctuationDelta,
-        capsDelta: upperAlphaDelta,
-        alphaDelta,
-      }),
-    });
-  }, [chatPartnerId]);
-
-  function shouldShowAvatar(messageList, index) {
-    if (index === 0) return true;
-    const current = messageList[index];
-    const previous = messageList[index - 1];
-
-    if (now - typingEmitCooldownRef.current < 750) return;
-    typingEmitCooldownRef.current = now;
-
-    socketRef.current.emit("typing_metadata", {
-      toUserId: chatPartnerId,
-      metadata: buildTypingMetadata({
-        charDelta: added,
-        intervalMs: interval,
-        backspaceDelta: removed,
-        pauseMs: interval,
-        punctuationDelta,
-        capsDelta: upperAlphaDelta,
+        capsDelta,
         alphaDelta,
       }),
     });

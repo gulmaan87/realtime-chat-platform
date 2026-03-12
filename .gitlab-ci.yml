@@ -11,6 +11,22 @@ services:
 before_script:
   - docker info
 
+conflict_guard:
+  stage: verify
+  image: alpine:3.20
+  before_script: []
+  script:
+    - if find . -path './**/node_modules/*' -prune -o -type f -print | xargs grep -nE '^(<<<<<<<|=======|>>>>>>>)'; then echo 'Merge conflict markers found'; exit 1; else echo 'No merge conflict markers'; fi
+
+chat_jsx_parse_guard:
+  stage: verify
+  image: node:20-alpine
+  before_script: []
+  script:
+    - cd services/frontend
+    - npm ci
+    - node -e "const fs=require('fs'); const esbuild=require('esbuild'); const src=fs.readFileSync('src/pages/Chat.jsx','utf8'); esbuild.transformSync(src,{loader:'jsx'}); console.log('Chat.jsx parse OK');"
+
 frontend_verify:
   stage: verify
   image: node:20-alpine
