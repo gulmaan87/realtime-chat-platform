@@ -613,3 +613,43 @@
     max-width: none;
   }
 }
+
+.feature-toggle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.feature-toggle-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.feature-toggle-item span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.feature-toggle-item strong {
+  color: #e9edef;
+  font-size: 14px;
+}
+
+.feature-toggle-item small {
+  color: #9eadb7;
+  font-size: 12px;
+}
+
+.feature-toggle-item input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: #ff3b30;
+  cursor: pointer;
+}
