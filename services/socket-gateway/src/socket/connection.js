@@ -38,9 +38,10 @@ module.exports = (io) => {
       socket.emit("presence_snapshot", snapshot);
     });
 
-    socket.on("private_message", async ({ to, message }) => {
+    socket.on("private_message", async (payload = {}) => {
       const fromUserId = socket.userId;
-      const toUserId = to ? String(to) : "";
+      const toUserId = payload.toUserId ? String(payload.toUserId) : payload.to ? String(payload.to) : "";
+      const message = typeof payload.message === "string" ? payload.message : "";
 
       if (!fromUserId || !toUserId || !message) {
         return;
@@ -50,13 +51,17 @@ module.exports = (io) => {
       console.log(`PRIVATE MESSAGE ${fromUserId} -> ${toUserId}: ${message}`);
 
       const messagePayload = {
-        from: fromUserId,
-        fromUserId,
+        ...payload,
+        localId: String(payload.localId || `${String(fromUserId)}-${toUserId}-${Date.now()}`),
+        from: payload.from || String(fromUserId),
+        fromUserId: String(fromUserId),
         to: toUserId,
         toUserId,
         roomId,
         message,
-        timestamp: Date.now(),
+        timestamp: Number(payload.timestamp || Date.now()),
+        type: payload.type || "text",
+        reactions: payload.reactions && typeof payload.reactions === "object" ? payload.reactions : {},
       };
 
       const targetSocketId = await redis.get(`user:${toUserId}`);
@@ -68,6 +73,108 @@ module.exports = (io) => {
       } else {
         console.log(`User ${toUserId} is offline`);
       }
+    });
+
+    socket.on("message_reaction", async ({ toUserId, messageId, emoji, action }) => {
+      const fromUserId = socket.userId;
+      const targetUserId = toUserId ? String(toUserId) : "";
+      if (!fromUserId || !targetUserId || !messageId || !emoji) return;
+
+      const targetSocketId = await redis.get(`user:${targetUserId}`);
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit("message_reaction", {
+        messageId: String(messageId),
+        emoji,
+        action: action === "remove" ? "remove" : "add",
+        userId: String(fromUserId),
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on("secret_unlock", async ({ toUserId, messageId }) => {
+      const fromUserId = socket.userId;
+      const targetUserId = toUserId ? String(toUserId) : "";
+      if (!fromUserId || !targetUserId || !messageId) return;
+
+      const targetSocketId = await redis.get(`user:${targetUserId}`);
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit("secret_unlock", {
+        messageId: String(messageId),
+        userId: String(fromUserId),
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on("typing_metadata", async ({ toUserId, metadata }) => {
+      const fromUserId = socket.userId;
+      const targetUserId = toUserId ? String(toUserId) : "";
+
+      if (!fromUserId || !targetUserId || !metadata || typeof metadata !== "object") {
+        return;
+      }
+
+      const targetSocketId = await redis.get(`user:${targetUserId}`);
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit("typing_metadata", {
+        fromUserId,
+        toUserId: targetUserId,
+        metadata,
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on("typing_stop", async ({ toUserId }) => {
+      const fromUserId = socket.userId;
+      const targetUserId = toUserId ? String(toUserId) : "";
+
+      if (!fromUserId || !targetUserId) {
+        return;
+      }
+
+      const targetSocketId = await redis.get(`user:${targetUserId}`);
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit("typing_stop", {
+        fromUserId,
+        toUserId: targetUserId,
+        timestamp: Date.now(),
+      });
+    });
+
+
+    socket.on("poll_vote", async ({ toUserId, messageId, optionId }) => {
+      const fromUserId = socket.userId;
+      const targetUserId = toUserId ? String(toUserId) : "";
+      if (!fromUserId || !targetUserId || !messageId || !optionId) return;
+
+      const targetSocketId = await redis.get(`user:${targetUserId}`);
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit("poll_vote", {
+        messageId: String(messageId),
+        optionId: String(optionId),
+        voterId: String(fromUserId),
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on("mini_game_attempt", async ({ toUserId, messageId, choice }) => {
+      const fromUserId = socket.userId;
+      const targetUserId = toUserId ? String(toUserId) : "";
+      if (!fromUserId || !targetUserId || !messageId || !choice) return;
+
+      const targetSocketId = await redis.get(`user:${targetUserId}`);
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit("mini_game_attempt", {
+        messageId: String(messageId),
+        choice: String(choice),
+        playerId: String(fromUserId),
+        timestamp: Date.now(),
+      });
     });
 
     socket.on("send_message", async (data) => {

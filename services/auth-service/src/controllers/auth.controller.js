@@ -63,7 +63,13 @@ function issueAuthResponse(res, user, statusCode = 200) {
 
   return res.status(statusCode).json({
     token,
-    user: { id: user._id, username: user.username, email: user.email }
+    user: {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      gamification: user.gamification || { xp: 0, level: 1, badges: [] },
+      socialPrivacy: user.socialPrivacy || { showFriendshipInsights: true },
+    }
   });
 }
 
