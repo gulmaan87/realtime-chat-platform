@@ -9,6 +9,11 @@ import { buildTypingMetadata, classifyTypingEmotion } from "../services/typingEm
 import { buildSmartReplies } from "../services/smartReplyService";
 import { getConversationSummary } from "../services/aiSummaryService";
 import { executeAssistantCommand, getCommandSuggestions } from "../services/assistantCommandService";
+import {
+  detectIntentActions,
+  detectScamSignals,
+  generateTonePreview,
+} from "../services/aiProductivityService";
 import "../App.css";
 
 const MOOD_THEME_TOGGLE_KEY = "feature:moodThemeEnabled";
@@ -80,6 +85,10 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   });
   const [commandSuggestions, setCommandSuggestions] = useState([]);
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
+  const [toneMode, setToneMode] = useState("professional");
+  const [dismissedIntentChips, setDismissedIntentChips] = useState({});
+  const [safetyWarning, setSafetyWarning] = useState(null);
+  const [showSafetyWhy, setShowSafetyWhy] = useState(false);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -91,10 +100,8 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const { token, user } = getSession();
   const userName = user?.username || user?.email || "User";
   const userId = getUserId(user);
-  const chatPartnerId = useMemo(
-    () => activeChatUser?.id || activeChatUser?._id || null,
-    [activeChatUser]
-  );
+
+  const chatPartnerId = useMemo(() => activeChatUser?.id || activeChatUser?._id || null, [activeChatUser]);
   const activeChatOnline = chatPartnerId ? Boolean(onlineStatuses[String(chatPartnerId)]) : false;
 
   const roomId = useMemo(() => {
@@ -111,10 +118,27 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     [messages, moodThemeEnabled]
   );
 
+  const outgoingTonePreview = useMemo(() => {
+    if (!text.trim() || text.trim().startsWith("/")) {
+      return { rewritten: "", reason: "" };
+    }
+    return generateTonePreview({ draft: text, tone: toneMode });
+  }, [text, toneMode]);
+
   const handleContactsLoaded = useCallback((contactIds) => {
     if (!Array.isArray(contactIds) || contactIds.length === 0) return;
     socketRef.current?.emit("request_presence", { userIds: contactIds });
   }, []);
+
+  const handleSelectChatUser = useCallback(
+    (nextUser) => {
+      setSafetyWarning(null);
+      setShowSafetyWhy(false);
+      setDismissedIntentChips({});
+      setActiveChatUser(nextUser);
+    },
+    [setActiveChatUser]
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 60);
@@ -173,17 +197,27 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
     socket.on("private_message", (incoming) => {
       const normalized = normalizeMessage(incoming);
+
       setMessages((prev) => {
         const next = [...prev, normalized];
+
         if (String(normalized.fromUserId || normalized.from) === String(chatPartnerId)) {
           setSmartReplies(buildSmartReplies({ messages: next, activeChatUser }));
+
+          const scam = detectScamSignals(normalized.message || "");
+          if (scam) {
+            setSafetyWarning({ ...scam, messageId: normalized.localId });
+            setShowSafetyWhy(false);
+          }
         }
+
         return next;
       });
     });
 
     socket.on("message_reaction", ({ messageId, emoji, userId: reactorUserId, action }) => {
       if (!messageId || !emoji || !reactorUserId) return;
+
       setMessages((prev) =>
         prev.map((entry) => {
           if (entry.localId !== messageId) return entry;
@@ -214,6 +248,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
     socket.on("presence_snapshot", (snapshot) => {
       if (!Array.isArray(snapshot)) return;
+
       setOnlineStatuses((prev) => {
         const next = { ...prev };
         snapshot.forEach(({ userId: presenceUserId, status }) => {
@@ -252,7 +287,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
         "typing_stop",
         "disconnect",
       ].forEach((eventName) => socket.off(eventName));
+
       socket.disconnect();
+
       if (socketRef.current === socket) {
         socketRef.current = null;
       }
@@ -271,9 +308,22 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       try {
         const data = await fetchChatHistory(userId, chatPartnerId);
         if (!mounted) return;
+
         const normalized = (data.messages || []).map((entry, i) => normalizeMessage(entry, i));
         setMessages(normalized);
         setSmartReplies(buildSmartReplies({ messages: normalized, activeChatUser }));
+
+        const lastIncoming = [...normalized]
+          .reverse()
+          .find((entry) => String(entry.fromUserId || entry.from) === String(chatPartnerId));
+
+        if (lastIncoming) {
+          const scam = detectScamSignals(lastIncoming.message || "");
+          if (scam) {
+            setSafetyWarning({ ...scam, messageId: lastIncoming.localId });
+            setShowSafetyWhy(false);
+          }
+        }
       } catch {
         if (mounted) setMessages([]);
       }
@@ -288,11 +338,13 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
   useEffect(() => {
     if (!typingState) return;
+
     const timer = setTimeout(() => {
       if (typingState.expiresAt <= Date.now()) {
         setTypingState(null);
       }
     }, 2300);
+
     return () => clearTimeout(timer);
   }, [typingState]);
 
@@ -349,13 +401,15 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
     const now = Date.now();
     const localId = `${String(userId)}-${String(chatPartnerId)}-${now}`;
+    const outgoingText = outgoingTonePreview.rewritten || text.trim();
+
     const payload = {
       localId,
       from: userName,
       fromUserId: userId,
       toUserId: chatPartnerId,
       to: chatPartnerId,
-      message: text.trim(),
+      message: outgoingText,
       timestamp: now,
       type: secretMode ? "secret" : "text",
       secret: secretMode
@@ -376,7 +430,18 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     setSecretMode(false);
     setCommandSuggestions([]);
     inputRef.current?.focus();
-  }, [activeChatUser, chatPartnerId, isConnected, messages, roomId, secretMode, text, userId, userName]);
+  }, [
+    activeChatUser,
+    chatPartnerId,
+    isConnected,
+    messages,
+    roomId,
+    secretMode,
+    text,
+    userId,
+    userName,
+    outgoingTonePreview,
+  ]);
 
   const applyReaction = useCallback(
     (message, emoji) => {
@@ -398,7 +463,12 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
         })
       );
 
-      socketRef.current?.emit("message_reaction", { toUserId: chatPartnerId, messageId, emoji, action });
+      socketRef.current?.emit("message_reaction", {
+        toUserId: chatPartnerId,
+        messageId,
+        emoji,
+        action,
+      });
 
       setReactionPulseId(messageId);
       setTimeout(() => setReactionPulseId(null), 250);
@@ -533,6 +603,22 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     return colors[name.charCodeAt(0) % colors.length] || colors[0];
   };
 
+  const getMessageIntentChips = (messageData) => {
+    const intents = detectIntentActions(messageData?.message || "");
+    const hidden = dismissedIntentChips[messageData?.localId] || {};
+    return intents.filter((intent) => !hidden[intent.key]);
+  };
+
+  const dismissIntentChip = (messageId, intentKey) => {
+    setDismissedIntentChips((prev) => ({
+      ...prev,
+      [messageId]: {
+        ...(prev[messageId] || {}),
+        [intentKey]: true,
+      },
+    }));
+  };
+
   return (
     <div className={`chat-app ${moodThemeEnabled ? `mood-${moodResult.mood}` : "mood-neutral"}`}>
       {moodThemeEnabled && ["romantic", "happy"].includes(moodResult.mood) ? (
@@ -570,7 +656,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
         <div className="contact-list-sidebar">
           <ContactList
-            onSelect={setActiveChatUser}
+            onSelect={handleSelectChatUser}
             activeChatUser={activeChatUser}
             onContactsLoaded={handleContactsLoaded}
             onlineStatuses={onlineStatuses}
@@ -630,6 +716,31 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
               </button>
             </div>
           </div>
+
+          {safetyWarning ? (
+            <div className={`safety-warning-banner ${safetyWarning.level}`}>
+              <div>
+                <strong>{safetyWarning.title}</strong>
+                <p>Be careful before sharing sensitive data or sending payments.</p>
+                <button
+                  className="safety-why-btn"
+                  onClick={() => setShowSafetyWhy((prev) => !prev)}
+                >
+                  {showSafetyWhy ? "Hide why" : "Why this warning?"}
+                </button>
+                {showSafetyWhy ? (
+                  <ul>
+                    {safetyWarning.reasons.map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+              <button className="safety-dismiss-btn" onClick={() => setSafetyWarning(null)}>
+                Dismiss
+              </button>
+            </div>
+          ) : null}
 
           <div className="messages-container">
             <div className="messages-wrapper">
@@ -712,27 +823,43 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                           </div>
 
                           {!assistant ? (
-                            <div className="message-reactions">
-                              {QUICK_REACTION_EMOJIS.map((emoji) => {
-                                const count = Array.isArray(messageData.reactions?.[emoji])
-                                  ? messageData.reactions[emoji].length
-                                  : 0;
-                                const mine =
-                                  Array.isArray(messageData.reactions?.[emoji]) &&
-                                  messageData.reactions[emoji].includes(String(userId));
+                            <>
+                              <div className="message-reactions">
+                                {QUICK_REACTION_EMOJIS.map((emoji) => {
+                                  const count = Array.isArray(messageData.reactions?.[emoji])
+                                    ? messageData.reactions[emoji].length
+                                    : 0;
+                                  const mine =
+                                    Array.isArray(messageData.reactions?.[emoji]) &&
+                                    messageData.reactions[emoji].includes(String(userId));
 
-                                return (
-                                  <button
-                                    key={emoji}
-                                    className={`reaction-chip ${mine ? "mine" : ""}`}
-                                    onClick={() => applyReaction(messageData, emoji)}
-                                  >
-                                    <span>{emoji}</span>
-                                    {count > 0 ? <small>{count}</small> : null}
-                                  </button>
-                                );
-                              })}
-                            </div>
+                                  return (
+                                    <button
+                                      key={emoji}
+                                      className={`reaction-chip ${mine ? "mine" : ""}`}
+                                      onClick={() => applyReaction(messageData, emoji)}
+                                    >
+                                      <span>{emoji}</span>
+                                      {count > 0 ? <small>{count}</small> : null}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {getMessageIntentChips(messageData).length > 0 ? (
+                                <div className="intent-action-chips">
+                                  {getMessageIntentChips(messageData).map((intent) => (
+                                    <button
+                                      key={intent.key}
+                                      className="intent-chip"
+                                      onClick={() => dismissIntentChip(messageData.localId, intent.key)}
+                                    >
+                                      {intent.label} ✕
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </>
                           ) : null}
                         </div>
                       </div>
@@ -762,6 +889,37 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                         {reply}
                       </button>
                     ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {text.trim() && !text.trim().startsWith("/") ? (
+                <div className="tone-preview-panel">
+                  <div className="tone-preview-header">
+                    <span>Auto tone converter</span>
+                    <select value={toneMode} onChange={(e) => setToneMode(e.target.value)}>
+                      <option value="professional">Professional</option>
+                      <option value="friendly">Friendly</option>
+                      <option value="concise">Concise</option>
+                    </select>
+                  </div>
+
+                  <div className="tone-preview-grid">
+                    <div>
+                      <small>Original draft</small>
+                      <p>{text}</p>
+                    </div>
+                    <div>
+                      <small>Converted preview</small>
+                      <p>{outgoingTonePreview.rewritten}</p>
+                    </div>
+                  </div>
+
+                  <div className="tone-preview-actions">
+                    <button onClick={() => setText(outgoingTonePreview.rewritten || text)}>
+                      Use converted
+                    </button>
+                    <span>{outgoingTonePreview.reason}</span>
                   </div>
                 </div>
               ) : null}
@@ -809,9 +967,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                     ) {
                       e.preventDefault();
                       setActiveCommandIndex((prev) => {
-                        if (e.key === "ArrowDown") {
-                          return (prev + 1) % commandSuggestions.length;
-                        }
+                        if (e.key === "ArrowDown") return (prev + 1) % commandSuggestions.length;
                         return prev === 0 ? commandSuggestions.length - 1 : prev - 1;
                       });
                       return;

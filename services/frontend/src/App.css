@@ -1089,3 +1089,132 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+.tone-preview-panel {
+  margin-bottom: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(12, 18, 28, 0.9);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tone-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #d7e2ee;
+}
+
+.tone-preview-header select {
+  background: #0f1624;
+  color: #d7e2ee;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  padding: 4px 6px;
+}
+
+.tone-preview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.tone-preview-grid div {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.tone-preview-grid small {
+  color: #93a7bb;
+}
+
+.tone-preview-grid p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #e7eff8;
+  word-break: break-word;
+}
+
+.tone-preview-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tone-preview-actions button {
+  border: none;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  color: #fff;
+  background: #3f7cff;
+  cursor: pointer;
+}
+
+.tone-preview-actions span {
+  color: #9cb2c8;
+  font-size: 11px;
+}
+
+.intent-action-chips {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.intent-chip {
+  border: 1px solid rgba(166, 200, 255, 0.4);
+  background: rgba(85, 136, 248, 0.18);
+  color: #dff0ff;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.safety-warning-banner {
+  margin: 10px 14px 0;
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(255, 204, 102, 0.45);
+  background: rgba(255, 196, 92, 0.14);
+}
+
+.safety-warning-banner.high {
+  border-color: rgba(255, 93, 93, 0.62);
+  background: rgba(255, 93, 93, 0.14);
+}
+
+.safety-warning-banner p {
+  margin: 4px 0;
+  font-size: 12px;
+  color: #f5e9d4;
+}
+
+.safety-warning-banner ul {
+  margin: 6px 0 0 18px;
+  color: #f6e7cf;
+  font-size: 12px;
+}
+
+.safety-why-btn,
+.safety-dismiss-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
