@@ -70,6 +70,77 @@ module.exports = (io) => {
       }
     });
 
+
+
+    socket.on("message_reaction", async ({ toUserId, messageId, emoji, action }) => {
+      const fromUserId = socket.userId;
+      const targetUserId = toUserId ? String(toUserId) : "";
+      if (!fromUserId || !targetUserId || !messageId || !emoji) return;
+
+      const targetSocketId = await redis.get(`user:${targetUserId}`);
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit("message_reaction", {
+        messageId: String(messageId),
+        emoji,
+        action: action === "remove" ? "remove" : "add",
+        userId: String(fromUserId),
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on("secret_unlock", async ({ toUserId, messageId }) => {
+      const fromUserId = socket.userId;
+      const targetUserId = toUserId ? String(toUserId) : "";
+      if (!fromUserId || !targetUserId || !messageId) return;
+
+      const targetSocketId = await redis.get(`user:${targetUserId}`);
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit("secret_unlock", {
+        messageId: String(messageId),
+        userId: String(fromUserId),
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on("typing_metadata", async ({ toUserId, metadata }) => {
+      const fromUserId = socket.userId;
+      const targetUserId = toUserId ? String(toUserId) : "";
+
+      if (!fromUserId || !targetUserId || !metadata || typeof metadata !== "object") {
+        return;
+      }
+
+      const targetSocketId = await redis.get(`user:${targetUserId}`);
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit("typing_metadata", {
+        fromUserId,
+        toUserId: targetUserId,
+        metadata,
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on("typing_stop", async ({ toUserId }) => {
+      const fromUserId = socket.userId;
+      const targetUserId = toUserId ? String(toUserId) : "";
+
+      if (!fromUserId || !targetUserId) {
+        return;
+      }
+
+      const targetSocketId = await redis.get(`user:${targetUserId}`);
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit("typing_stop", {
+        fromUserId,
+        toUserId: targetUserId,
+        timestamp: Date.now(),
+      });
+    });
+
     socket.on("send_message", async (data) => {
       await publishMessage({
         sender: data.sender || socket.id,
