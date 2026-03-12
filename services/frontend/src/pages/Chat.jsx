@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Send, CheckCheck, LogOut, Settings, Lock, Sparkles, Bot, RefreshCw } from "lucide-react";
+import ContactList from "../components/ContactList";
 import { createSocket } from "../services/socket";
 import { fetchChatHistory } from "../services/api";
 import { clearSession, getSession, getUserId } from "../services/session";
@@ -14,6 +16,20 @@ import "../App.css";
 const MOOD_THEME_TOGGLE_KEY = "feature:moodThemeEnabled";
 const TYPING_EMOTION_TOGGLE_KEY = "feature:typingEmotionEnabled";
 const REACTION_SOUND_TOGGLE_KEY = "feature:reactionSoundEnabled";
+
+function playReactionSound() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "triangle";
+  osc.frequency.setValueAtTime(660, ctx.currentTime);
+  gain.gain.setValueAtTime(0.04, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.12);
+}
 
 function normalizeMessage(entry, fallbackIndex = 0) {
   if (typeof entry === "string") {
@@ -88,10 +104,12 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const { token, user } = getSession();
   const userName = user?.username || user?.email || "User";
   const userId = getUserId(user);
-  const socketRef = useRef(null);
   const chatPartnerId = useMemo(() => activeChatUser?.id || activeChatUser?._id || null, [activeChatUser]);
   const activeChatOnline = chatPartnerId ? Boolean(onlineStatuses[String(chatPartnerId)]) : false;
-  const roomId = useMemo(() => (chatPartnerId && userId ? [String(chatPartnerId), String(userId)].sort().join(":") : ""), [chatPartnerId, userId]);
+  const roomId = useMemo(() => {
+    if (!chatPartnerId || !userId) return "";
+    return [String(chatPartnerId), String(userId)].sort().join(":");
+  }, [chatPartnerId, userId]);
 
   const moodThemeEnabled = localStorage.getItem(MOOD_THEME_TOGGLE_KEY) !== "false";
   const typingEmotionEnabled = localStorage.getItem(TYPING_EMOTION_TOGGLE_KEY) !== "false";
@@ -210,19 +228,45 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     }
   }, []);
 
+  const refreshSummary = useCallback(async (forceRefresh = false) => {
+    if (!roomId || messages.length === 0) {
+      setSummaryState((prev) => ({ ...prev, summary: "No summary yet." }));
+      return;
+    }
+
+    setSummaryState((prev) => ({ ...prev, loading: true }));
+    try {
+      const result = await getConversationSummary({ roomId, messages, activeChatUser, forceRefresh });
+      setSummaryState({
+        loading: false,
+        summary: result.summary || "No summary generated.",
+        source: result.source,
+        updatedAt: result.updatedAt,
+      });
+    } catch {
+      setSummaryState((prev) => ({ ...prev, loading: false, summary: "Unable to summarize conversation right now." }));
+    }
+  }, [activeChatUser, messages, roomId]);
+
+  useEffect(() => {
+    if (!roomId || messages.length === 0) return;
+    const timer = setTimeout(() => refreshSummary(false), 0);
+    return () => clearTimeout(timer);
+  }, [refreshSummary, roomId, messages.length]);
+
   useEffect(() => {
     if (!userId || !token) return;
 
-    const currentSocket = createSocket(token);
-    socketRef.current = currentSocket;
+    const socket = createSocket(token);
+    socketRef.current = socket;
 
-    currentSocket.on("connect", () => {
-      currentSocket.emit("register");
+    socket.on("connect", () => {
+      socket.emit("register");
       setIsConnected(true);
     });
 
-    currentSocket.on("private_message", (msg) => {
-      const normalized = normalizeMessage(msg);
+    socket.on("private_message", (incoming) => {
+      const normalized = normalizeMessage(incoming);
       setMessages((prev) => {
         const next = [...prev, normalized];
         if (String(normalized.fromUserId || normalized.from) === String(chatPartnerId)) {
@@ -253,12 +297,32 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       }
     });
 
-    currentSocket.on("presence_update", ({ userId: presenceUserId, status }) => {
+    socket.on("message_reaction", ({ messageId, emoji, userId: reactorUserId, action }) => {
+      if (!messageId || !emoji || !reactorUserId) return;
+      setMessages((prev) => prev.map((entry) => {
+        if (entry.localId !== messageId) return entry;
+        const reactions = { ...(entry.reactions || {}) };
+        const set = new Set(Array.isArray(reactions[emoji]) ? reactions[emoji] : []);
+        if (action === "remove") set.delete(String(reactorUserId));
+        else set.add(String(reactorUserId));
+        reactions[emoji] = [...set];
+        return { ...entry, reactions };
+      }));
+    });
+
+    socket.on("secret_unlock", ({ messageId, userId: unlockerId }) => {
+      if (!messageId || !unlockerId) return;
+      if (String(unlockerId) === String(userId)) {
+        setUnlockedSecrets((prev) => ({ ...prev, [messageId]: true }));
+      }
+    });
+
+    socket.on("presence_update", ({ userId: presenceUserId, status }) => {
       if (!presenceUserId) return;
       setOnlineStatuses((prev) => ({ ...prev, [String(presenceUserId)]: status === "online" }));
     });
 
-    currentSocket.on("presence_snapshot", (snapshot) => {
+    socket.on("presence_snapshot", (snapshot) => {
       if (!Array.isArray(snapshot)) return;
       setOnlineStatuses((prev) => {
         const next = { ...prev };
@@ -269,47 +333,27 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       });
     });
 
-    currentSocket.on("typing_metadata", (payload) => {
+    socket.on("typing_metadata", (payload) => {
       if (!payload || String(payload.fromUserId) !== String(chatPartnerId)) return;
       const label = !typingEmotionEnabled ? "typing…" : classifyTypingEmotion(payload.metadata || {}).label;
       setTypingState({ label, expiresAt: Date.now() + 2200 });
-      if (!typingEmotionEnabled) {
-        setTypingState({ label: "typing…", expiresAt: Date.now() + 2200 });
-        return;
-      }
-
-      const result = classifyTypingEmotion(payload.metadata || {});
-      setTypingState({ label: result.label, expiresAt: Date.now() + 2200 });
     });
 
-    currentSocket.on("typing_stop", ({ fromUserId }) => {
+    socket.on("typing_stop", ({ fromUserId }) => {
       if (String(fromUserId) === String(chatPartnerId)) {
         setTypingState(null);
       }
     });
 
-    currentSocket.on("disconnect", () => {
-      setIsConnected(false);
-    });
-
-    currentSocket.on("typing_stop", ({ fromUserId }) => {
-      if (String(fromUserId) === String(chatPartnerId)) setTypingState(null);
-    });
-
-    currentSocket.on("disconnect", () => setIsConnected(false));
-    currentSocket.connect();
+    socket.on("disconnect", () => setIsConnected(false));
+    socket.connect();
 
     return () => {
-      ["connect", "private_message", "message_reaction", "secret_unlock", "presence_update", "presence_snapshot", "typing_metadata", "typing_stop", "disconnect"].forEach((eventName) => currentSocket.off(eventName));
-      currentSocket.off("connect");
-      currentSocket.off("private_message");
-      currentSocket.off("presence_update");
-      currentSocket.off("presence_snapshot");
-      currentSocket.off("typing_metadata");
-      currentSocket.off("typing_stop");
-      currentSocket.off("disconnect");
-      currentSocket.disconnect();
-      if (socketRef.current === currentSocket) socketRef.current = null;
+      ["connect", "private_message", "message_reaction", "secret_unlock", "presence_update", "presence_snapshot", "typing_metadata", "typing_stop", "disconnect"].forEach((eventName) => socket.off(eventName));
+      socket.disconnect();
+      if (socketRef.current === socket) {
+        socketRef.current = null;
+      }
     };
   }, [token, userId, chatPartnerId, typingEmotionEnabled, activeChatUser]);
 
@@ -438,14 +482,18 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     }
 
     return () => {
-      isMounted = false;
+      mounted = false;
     };
   }, [chatPartnerId, userId, activeChatUser]);
 
   useEffect(() => {
     if (!typingState) return;
-    const timeout = setTimeout(() => typingState.expiresAt <= Date.now() && setTypingState(null), 2400);
-    return () => clearTimeout(timeout);
+    const timer = setTimeout(() => {
+      if (typingState.expiresAt <= Date.now()) {
+        setTypingState(null);
+      }
+    }, 2300);
+    return () => clearTimeout(timer);
   }, [typingState]);
 
   const isOwnMessage = useCallback((messageData) => {
@@ -453,17 +501,39 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     return messageData.self === true || String(senderId) === String(userId) || messageData.from === userName;
   }, [userId, userName]);
 
-  const handleContactsLoaded = useCallback((contactIds) => {
-    if (!Array.isArray(contactIds) || contactIds.length === 0) return;
-    socketRef.current?.emit("request_presence", { userIds: contactIds });
-  }, []);
-
-  const sendMessage = useCallback(() => {
+  const sendMessage = useCallback(async () => {
     if (!text.trim() || !isConnected || !chatPartnerId) return;
+
+    if (text.trim().startsWith("/")) {
+      const result = await executeAssistantCommand({ input: text.trim(), roomId, messages, activeChatUser });
+      const assistantMessage = {
+        localId: `assistant-${Date.now()}`,
+        from: "assistant",
+        fromUserId: "assistant",
+        toUserId: userId,
+        to: userId,
+        message: result.text,
+        timestamp: Date.now(),
+        type: "assistant",
+        reactions: {},
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+      if (result.summary) {
+        setSummaryState({
+          loading: false,
+          summary: result.summary.summary,
+          source: result.summary.source,
+          updatedAt: result.summary.updatedAt,
+        });
+      }
+      setText("");
+      setCommandSuggestions([]);
+      return;
+    }
 
     const now = Date.now();
     const localId = `${String(userId)}-${String(chatPartnerId)}-${now}`;
-    const baseMessage = {
+    const payload = {
       localId,
       from: userName,
       fromUserId: userId,
@@ -867,13 +937,14 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                               <button className="secret-unlock-btn" onClick={() => unlockSecret(messageData)}>Unlock</button>
                             </div>
                           ) : (
-                            <div className="message-text">{isSecret ? (revealSecretBody(messageData) ? messageData.message : "Secret viewed once") : messageData.message}</div>
-                            <div className="message-text">{canReveal ? (revealSecretBody(messageData) ? messageData.message : "Secret viewed once") : messageData.message}</div>
+                            <div className="message-text">
+                              {isSecret ? (revealSecretBody(messageData) ? messageData.message : "Secret viewed once") : messageData.message}
+                            </div>
                           )}
 
                           <div className="message-footer">
-                            <span className="message-time">{new Date(messageData.timestamp || 0).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                            {own && <span className="message-status"><CheckCheck size={14} /></span>}
+                            <span className="message-time">{toTime(messageData.timestamp)}</span>
+                            {own ? <span className="message-status"><CheckCheck size={14} /></span> : null}
                           </div>
 
                           {!assistant ? (
