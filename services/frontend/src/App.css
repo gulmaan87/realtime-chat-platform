@@ -1007,3 +1007,85 @@
   50% { transform: scale(1.02); }
   100% { transform: scale(1); }
 }
+
+.assistant-bubble {
+  background: linear-gradient(135deg, #2b3655, #202b46) !important;
+  border: 1px solid rgba(146, 187, 255, 0.24);
+}
+
+.command-menu {
+  margin-bottom: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(9, 13, 20, 0.96);
+}
+
+.command-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  padding: 9px 10px;
+  background: transparent;
+  color: #dbe5ef;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.command-item small {
+  color: #95a6b7;
+}
+
+.command-item:hover,
+.command-item.active {
+  background: rgba(106, 143, 255, 0.18);
+}
+
+.summary-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.summary-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-refresh {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #d6e2ef;
+  padding: 4px 8px;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.summary-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #dbe5ef;
+}
+
+.summary-meta {
+  margin: 0;
+  font-size: 11px;
+  color: #92a6bb;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
