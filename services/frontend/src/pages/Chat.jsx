@@ -141,6 +141,48 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     }, 0);
     return () => clearTimeout(timer);
   }, [roomId, messages.length, refreshSummary]);
+  useEffect(() => {
+    const timer = setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    return () => clearTimeout(timer);
+  }, [messages]);
+
+  useEffect(() => {
+    if (!typingMetricsRef.current.lastTimestamp) typingMetricsRef.current.lastTimestamp = Date.now();
+  }, []);
+
+  const refreshSummary = useCallback(async (forceRefresh = false) => {
+    if (!roomId || messages.length === 0) {
+      setSummaryState((prev) => ({ ...prev, summary: "No summary yet." }));
+      return;
+    }
+
+    setSummaryState((prev) => ({ ...prev, loading: true }));
+    try {
+      const result = await getConversationSummary({
+        roomId,
+        messages,
+        activeChatUser,
+        forceRefresh,
+      });
+
+      setSummaryState({
+        loading: false,
+        summary: result.summary || "No summary generated.",
+        source: result.source,
+        updatedAt: result.updatedAt,
+      });
+    } catch {
+      setSummaryState((prev) => ({ ...prev, loading: false, summary: "Unable to summarize conversation right now." }));
+    }
+  }, [activeChatUser, messages, roomId]);
+
+  useEffect(() => {
+    if (!roomId || messages.length === 0) return;
+    const timer = setTimeout(() => {
+      refreshSummary(false);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [roomId, messages.length, refreshSummary]);
 
   const moodThemeEnabled = localStorage.getItem(MOOD_THEME_TOGGLE_KEY) !== "false";
   const typingEmotionEnabled = localStorage.getItem(TYPING_EMOTION_TOGGLE_KEY) !== "false";
@@ -342,6 +384,59 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       return;
     }
 
+  useEffect(() => {
+    if (!typingState) return;
+    const timeout = setTimeout(() => typingState.expiresAt <= Date.now() && setTypingState(null), 2400);
+    return () => clearTimeout(timeout);
+  }, [typingState]);
+
+  const isOwnMessage = useCallback((messageData) => {
+    const senderId = messageData.fromUserId || messageData.senderId || messageData.from;
+    return messageData.self === true || String(senderId) === String(userId) || messageData.from === userName;
+  }, [userId, userName]);
+
+  const handleContactsLoaded = useCallback((contactIds) => {
+    if (!Array.isArray(contactIds) || contactIds.length === 0) return;
+    socketRef.current?.emit("request_presence", { userIds: contactIds });
+  }, []);
+
+  const sendMessage = useCallback(async () => {
+    if (!text.trim() || !isConnected || !chatPartnerId) return;
+
+    if (text.trim().startsWith("/")) {
+      const result = await executeAssistantCommand({
+        input: text.trim(),
+        roomId,
+        messages,
+        activeChatUser,
+      });
+
+      const assistantMessage = {
+        localId: `assistant-${Date.now()}`,
+        from: "assistant",
+        fromUserId: "assistant",
+        toUserId: userId,
+        to: userId,
+        message: result.text,
+        timestamp: Date.now(),
+        type: "assistant",
+        reactions: {},
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+      if (result.summary) {
+        setSummaryState({
+          loading: false,
+          summary: result.summary.summary,
+          source: result.summary.source,
+          updatedAt: result.summary.updatedAt,
+        });
+      }
+      setText("");
+      setCommandSuggestions([]);
+      return;
+    }
+
     return () => {
       isMounted = false;
     };
@@ -390,6 +485,11 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     socketRef.current?.emit("private_message", baseMessage);
     setMessages((prev) => [...prev, { ...baseMessage, self: true }]);
     socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId });
+    setText("");
+    setSecretMode(false);
+    setCommandSuggestions([]);
+    inputRef.current?.focus();
+  }, [activeChatUser, chatPartnerId, isConnected, messages, roomId, secretMode, text, userId, userName]);
     setText("");
     setSecretMode(false);
     setCommandSuggestions([]);
@@ -491,6 +591,10 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     if (!chatPartnerId || !socketRef.current) return;
     if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
     typingStopTimerRef.current = setTimeout(() => socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId }), 1600);
+
+    if (!chatPartnerId || !socketRef.current) return;
+    if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
+    typingStopTimerRef.current = setTimeout(() => socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId }), 1600);
     if (!chatPartnerId || !socketRef.current) return;
     if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
     typingStopTimerRef.current = setTimeout(() => socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId }), 1600);
@@ -540,6 +644,10 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   };
 
   const shouldGroupMessages = (list, index) => {
+    if (index === 0) return false;
+    const sameSender = (list[index].from || list[index].sender) === (list[index - 1].from || list[index - 1].sender);
+    return sameSender && Math.abs(Number(list[index].timestamp || 0) - Number(list[index - 1].timestamp || 0)) < 300000;
+  };
     if (index === 0) return false;
     const sameSender = (list[index].from || list[index].sender) === (list[index - 1].from || list[index - 1].sender);
     return sameSender && Math.abs(Number(list[index].timestamp || 0) - Number(list[index - 1].timestamp || 0)) < 300000;
@@ -891,6 +999,15 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             <h3>{activeChatUser?.username || "No chat selected"}</h3>
             <p>{activeChatUser?.email || "Select a contact to view details"}</p>
             {moodThemeEnabled ? <p className="chat-mood-chip">Mood: {moodResult.mood} · {Math.round(moodResult.confidence * 100)}%</p> : null}
+          </div>
+
+          <div className="details-section summary-panel">
+            <div className="summary-header-row">
+              <div className="details-section-header">Conversation Summary</div>
+              <button className="summary-refresh" onClick={() => refreshSummary(true)} disabled={summaryState.loading}>
+                <RefreshCw size={14} className={summaryState.loading ? "spinning" : ""} />
+                Refresh
+              </button>
           </div>
 
           <div className="details-section summary-panel">
