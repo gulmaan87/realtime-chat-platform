@@ -1,42 +1,54 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Send, CheckCheck, LogOut, Settings, Lock, Sparkles, Bot, RefreshCw } from "lucide-react";
+import {
+  Send,
+  CheckCheck,
+  LogOut,
+  Settings,
+  Lock,
+  Sparkles,
+  Bot,
+  RefreshCw,
+} from "lucide-react";
 import ContactList from "../components/ContactList";
 import { createSocket } from "../services/socket";
 import { fetchChatHistory } from "../services/api";
 import { clearSession, getSession, getUserId } from "../services/session";
 import { analyzeConversationMood } from "../services/sentimentService";
-import { buildTypingMetadata, classifyTypingEmotion } from "../services/typingEmotionService";
+import {
+  buildTypingMetadata,
+  classifyTypingEmotion,
+} from "../services/typingEmotionService";
 import { buildSmartReplies } from "../services/smartReplyService";
 import { getConversationSummary } from "../services/aiSummaryService";
-import { executeAssistantCommand, getCommandSuggestions } from "../services/assistantCommandService";
-import { detectIntentActions, detectScamSignals, generateTonePreview } from "../services/aiProductivityService";
 import {
-  applyMiniGameAttempt,
-  applyPollVote,
-  awardMessageXp,
-  buildMiniGameMessage,
-  buildPollMessage,
-  deriveLevel,
-  getStoredXpState,
-  loadFriendshipStats,
-  updateFriendshipInteraction,
-} from "../services/gamificationSocialService";
+  executeAssistantCommand,
+  getCommandSuggestions,
+} from "../services/assistantCommandService";
+import {
+  detectIntentActions,
+  detectScamSignals,
+  generateTonePreview,
+} from "../services/aiProductivityService";
 import "../App.css";
 
 const MOOD_THEME_TOGGLE_KEY = "feature:moodThemeEnabled";
 const TYPING_EMOTION_TOGGLE_KEY = "feature:typingEmotionEnabled";
 const REACTION_SOUND_TOGGLE_KEY = "feature:reactionSoundEnabled";
-const FRIENDSHIP_INSIGHTS_KEY = "feature:friendshipInsightsEnabled";
 const QUICK_REACTION_EMOJIS = ["👍", "❤️", "😂", "🔥", "😮"];
 
 function playReactionSound() {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return;
+
+  const ctx = new AudioCtx();
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
+
   osc.type = "triangle";
   osc.frequency.setValueAtTime(660, ctx.currentTime);
   gain.gain.setValueAtTime(0.04, ctx.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+
   osc.connect(gain);
   gain.connect(ctx.destination);
   osc.start();
@@ -57,18 +69,29 @@ function normalizeMessage(entry, fallbackIndex = 0) {
   const timestamp = Number(entry?.timestamp || Date.now());
   const fromId = String(entry?.fromUserId || entry?.from || "unknown");
   const toId = String(entry?.toUserId || entry?.to || "unknown");
+  const localId = String(
+    entry?.localId ||
+      entry?.clientMessageId ||
+      `${fromId}-${toId}-${timestamp}-${fallbackIndex}`
+  );
 
   return {
     ...entry,
-    localId: String(entry?.localId || entry?.clientMessageId || `${fromId}-${toId}-${timestamp}-${fallbackIndex}`),
+    localId,
     type: entry?.type || "text",
-    reactions: entry?.reactions && typeof entry.reactions === "object" ? entry.reactions : {},
+    reactions:
+      entry?.reactions && typeof entry.reactions === "object"
+        ? entry.reactions
+        : {},
   };
 }
 
 function toTime(ts) {
   if (!ts) return "";
-  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Date(ts).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function Chat({ activeChatUser, setActiveChatUser }) {
@@ -82,19 +105,18 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const [secretMode, setSecretMode] = useState(false);
   const [unlockedSecrets, setUnlockedSecrets] = useState({});
   const [secretViewed, setSecretViewed] = useState({});
-  const [summaryState, setSummaryState] = useState({ loading: false, summary: "No summary yet.", source: "none", updatedAt: null });
+  const [summaryState, setSummaryState] = useState({
+    loading: false,
+    summary: "No summary yet.",
+    source: "none",
+    updatedAt: null,
+  });
   const [commandSuggestions, setCommandSuggestions] = useState([]);
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
   const [toneMode, setToneMode] = useState("professional");
   const [dismissedIntentChips, setDismissedIntentChips] = useState({});
   const [safetyWarning, setSafetyWarning] = useState(null);
   const [showSafetyWhy, setShowSafetyWhy] = useState(false);
-  const [xpState, setXpState] = useState(() => getStoredXpState());
-  const [friendshipStats, setFriendshipStats] = useState(() => loadFriendshipStats());
-  const [friendshipInsightsEnabled, setFriendshipInsightsEnabled] = useState(() => localStorage.getItem(FRIENDSHIP_INSIGHTS_KEY) !== "false");
-  const [pollQuestion, setPollQuestion] = useState("");
-  const [pollOptionsText, setPollOptionsText] = useState("Yes\nNo");
-  const [showInteractiveComposer, setShowInteractiveComposer] = useState(false);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -106,22 +128,34 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const { token, user } = getSession();
   const userName = user?.username || user?.email || "User";
   const userId = getUserId(user);
-  const chatPartnerId = useMemo(() => activeChatUser?.id || activeChatUser?._id || null, [activeChatUser]);
-  const activeChatOnline = chatPartnerId ? Boolean(onlineStatuses[String(chatPartnerId)]) : false;
+
+  const chatPartnerId = useMemo(
+    () => activeChatUser?.id || activeChatUser?._id || null,
+    [activeChatUser]
+  );
+
+  const activeChatOnline = chatPartnerId
+    ? Boolean(onlineStatuses[String(chatPartnerId)])
+    : false;
+
   const roomId = useMemo(() => {
     if (!chatPartnerId || !userId) return "";
     return [String(chatPartnerId), String(userId)].sort().join(":");
   }, [chatPartnerId, userId]);
 
-  const moodThemeEnabled = localStorage.getItem(MOOD_THEME_TOGGLE_KEY) !== "false";
-  const typingEmotionEnabled = localStorage.getItem(TYPING_EMOTION_TOGGLE_KEY) !== "false";
-  const reactionSoundEnabled = localStorage.getItem(REACTION_SOUND_TOGGLE_KEY) !== "false";
-  const levelInfo = useMemo(() => deriveLevel(xpState.xp), [xpState.xp]);
-  const friendshipInsight = chatPartnerId ? friendshipStats[String(chatPartnerId)] : null;
+  const moodThemeEnabled =
+    localStorage.getItem(MOOD_THEME_TOGGLE_KEY) !== "false";
+  const typingEmotionEnabled =
+    localStorage.getItem(TYPING_EMOTION_TOGGLE_KEY) !== "false";
+  const reactionSoundEnabled =
+    localStorage.getItem(REACTION_SOUND_TOGGLE_KEY) !== "false";
 
   const moodResult = useMemo(
-    () => (moodThemeEnabled ? analyzeConversationMood(messages) : { mood: "neutral", confidence: 0 }),
-    [messages, moodThemeEnabled],
+    () =>
+      moodThemeEnabled
+        ? analyzeConversationMood(messages)
+        : { mood: "neutral", confidence: 0 },
+    [messages, moodThemeEnabled]
   );
 
   const outgoingTonePreview = useMemo(() => {
@@ -136,15 +170,21 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     socketRef.current?.emit("request_presence", { userIds: contactIds });
   }, []);
 
-  const handleSelectChatUser = useCallback((nextUser) => {
-    setSafetyWarning(null);
-    setShowSafetyWhy(false);
-    setDismissedIntentChips({});
-    setActiveChatUser(nextUser);
-  }, [setActiveChatUser]);
+  const handleSelectChatUser = useCallback(
+    (nextUser) => {
+      setSafetyWarning(null);
+      setShowSafetyWhy(false);
+      setDismissedIntentChips({});
+      setActiveChatUser(nextUser);
+    },
+    [setActiveChatUser]
+  );
 
   useEffect(() => {
-    const timer = setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 60);
+    const timer = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 60);
+
     return () => clearTimeout(timer);
   }, [messages]);
 
@@ -154,46 +194,43 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     }
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(FRIENDSHIP_INSIGHTS_KEY, String(friendshipInsightsEnabled));
-  }, [friendshipInsightsEnabled]);
+  const refreshSummary = useCallback(
+    async (forceRefresh = false) => {
+      if (!roomId || messages.length === 0) {
+        setSummaryState((prev) => ({ ...prev, summary: "No summary yet." }));
+        return;
+      }
 
-  useEffect(() => {
-    if (!token) return;
-    const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
-    fetch(`${AUTH_API_URL}/users/me/privacy/friendship`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ showFriendshipInsights: friendshipInsightsEnabled }),
-    }).catch(() => {});
-  }, [friendshipInsightsEnabled, token]);
+      setSummaryState((prev) => ({ ...prev, loading: true }));
 
+      try {
+        const result = await getConversationSummary({
+          roomId,
+          messages,
+          activeChatUser,
+          forceRefresh,
+        });
 
-  const refreshSummary = useCallback(async (forceRefresh = false) => {
-    if (!roomId || messages.length === 0) {
-      setSummaryState((prev) => ({ ...prev, summary: "No summary yet." }));
-      return;
-    }
-
-    setSummaryState((prev) => ({ ...prev, loading: true }));
-    try {
-      const result = await getConversationSummary({ roomId, messages, activeChatUser, forceRefresh });
-      setSummaryState({
-        loading: false,
-        summary: result.summary || "No summary generated.",
-        source: result.source,
-        updatedAt: result.updatedAt,
-      });
-    } catch {
-      setSummaryState((prev) => ({ ...prev, loading: false, summary: "Unable to summarize conversation right now." }));
-    }
-  }, [activeChatUser, messages, roomId]);
+        setSummaryState({
+          loading: false,
+          summary: result.summary || "No summary generated.",
+          source: result.source,
+          updatedAt: result.updatedAt,
+        });
+      } catch {
+        setSummaryState((prev) => ({
+          ...prev,
+          loading: false,
+          summary: "Unable to summarize conversation right now.",
+        }));
+      }
+    },
+    [activeChatUser, messages, roomId]
+  );
 
   useEffect(() => {
     if (!roomId || messages.length === 0) return;
+
     const timer = setTimeout(() => refreshSummary(false), 0);
     return () => clearTimeout(timer);
   }, [refreshSummary, roomId, messages.length]);
@@ -211,35 +248,46 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
     socket.on("private_message", (incoming) => {
       const normalized = normalizeMessage(incoming);
+
       setMessages((prev) => {
         const next = [...prev, normalized];
+
         if (String(normalized.fromUserId || normalized.from) === String(chatPartnerId)) {
           setSmartReplies(buildSmartReplies({ messages: next, activeChatUser }));
+
           const scam = detectScamSignals(normalized.message || "");
           if (scam) {
             setSafetyWarning({ ...scam, messageId: normalized.localId });
             setShowSafetyWhy(false);
           }
         }
+
         return next;
       });
     });
 
     socket.on("message_reaction", ({ messageId, emoji, userId: reactorUserId, action }) => {
       if (!messageId || !emoji || !reactorUserId) return;
-      setMessages((prev) => prev.map((entry) => {
-        if (entry.localId !== messageId) return entry;
-        const reactions = { ...(entry.reactions || {}) };
-        const set = new Set(Array.isArray(reactions[emoji]) ? reactions[emoji] : []);
-        if (action === "remove") set.delete(String(reactorUserId));
-        else set.add(String(reactorUserId));
-        reactions[emoji] = [...set];
-        return { ...entry, reactions };
-      }));
+
+      setMessages((prev) =>
+        prev.map((entry) => {
+          if (entry.localId !== messageId) return entry;
+
+          const reactions = { ...(entry.reactions || {}) };
+          const set = new Set(Array.isArray(reactions[emoji]) ? reactions[emoji] : []);
+
+          if (action === "remove") set.delete(String(reactorUserId));
+          else set.add(String(reactorUserId));
+
+          reactions[emoji] = [...set];
+          return { ...entry, reactions };
+        })
+      );
     });
 
     socket.on("secret_unlock", ({ messageId, userId: unlockerId }) => {
       if (!messageId || !unlockerId) return;
+
       if (String(unlockerId) === String(userId)) {
         setUnlockedSecrets((prev) => ({ ...prev, [messageId]: true }));
       }
@@ -247,25 +295,36 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
     socket.on("presence_update", ({ userId: presenceUserId, status }) => {
       if (!presenceUserId) return;
-      setOnlineStatuses((prev) => ({ ...prev, [String(presenceUserId)]: status === "online" }));
+
+      setOnlineStatuses((prev) => ({
+        ...prev,
+        [String(presenceUserId)]: status === "online",
+      }));
     });
 
     socket.on("presence_snapshot", (snapshot) => {
       if (!Array.isArray(snapshot)) return;
+
       setOnlineStatuses((prev) => {
         const next = { ...prev };
+
         snapshot.forEach(({ userId: presenceUserId, status }) => {
           if (presenceUserId) {
             next[String(presenceUserId)] = status === "online";
           }
         });
+
         return next;
       });
     });
 
     socket.on("typing_metadata", (payload) => {
       if (!payload || String(payload.fromUserId) !== String(chatPartnerId)) return;
-      const label = !typingEmotionEnabled ? "typing…" : classifyTypingEmotion(payload.metadata || {}).label;
+
+      const label = !typingEmotionEnabled
+        ? "typing…"
+        : classifyTypingEmotion(payload.metadata || {}).label;
+
       setTypingState({ label, expiresAt: Date.now() + 2200 });
     });
 
@@ -275,26 +334,24 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       }
     });
 
-
-    socket.on("poll_vote", ({ messageId, optionId, voterId }) => {
-      if (!messageId || !optionId || !voterId) return;
-      setMessages((prev) => prev.map((entry) => (
-        entry.localId === messageId ? applyPollVote(entry, { optionId, voterId }) : entry
-      )));
-    });
-
-    socket.on("mini_game_attempt", ({ messageId, playerId, choice }) => {
-      if (!messageId || !playerId || !choice) return;
-      setMessages((prev) => prev.map((entry) => (
-        entry.localId === messageId ? applyMiniGameAttempt(entry, { playerId, choice }) : entry
-      )));
-    });
     socket.on("disconnect", () => setIsConnected(false));
     socket.connect();
 
     return () => {
-      ["connect", "private_message", "message_reaction", "secret_unlock", "presence_update", "presence_snapshot", "typing_metadata", "typing_stop", "poll_vote", "mini_game_attempt", "disconnect"].forEach((eventName) => socket.off(eventName));
+      [
+        "connect",
+        "private_message",
+        "message_reaction",
+        "secret_unlock",
+        "presence_update",
+        "presence_snapshot",
+        "typing_metadata",
+        "typing_stop",
+        "disconnect",
+      ].forEach((eventName) => socket.off(eventName));
+
       socket.disconnect();
+
       if (socketRef.current === socket) {
         socketRef.current = null;
       }
@@ -303,6 +360,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
   useEffect(() => {
     let mounted = true;
+
     async function loadHistory() {
       if (!chatPartnerId) {
         setMessages([]);
@@ -312,41 +370,75 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       try {
         const data = await fetchChatHistory(userId, chatPartnerId);
         if (!mounted) return;
-        const normalized = (data.messages || []).map((entry, i) => normalizeMessage(entry, i));
+
+        const normalized = (data.messages || []).map((entry, i) =>
+          normalizeMessage(entry, i)
+        );
+
         setMessages(normalized);
         setSmartReplies(buildSmartReplies({ messages: normalized, activeChatUser }));
+
+        const lastIncoming = [...normalized]
+          .reverse()
+          .find(
+            (entry) => String(entry.fromUserId || entry.from) === String(chatPartnerId)
+          );
+
+        if (lastIncoming) {
+          const scam = detectScamSignals(lastIncoming.message || "");
+          if (scam) {
+            setSafetyWarning({ ...scam, messageId: lastIncoming.localId });
+            setShowSafetyWhy(false);
+          }
+        }
       } catch {
         if (mounted) setMessages([]);
       }
     }
 
     loadHistory();
+
     return () => {
       mounted = false;
     };
   }, [chatPartnerId, userId, activeChatUser]);
 
-
   useEffect(() => {
     if (!typingState) return;
+
     const timer = setTimeout(() => {
       if (typingState.expiresAt <= Date.now()) {
         setTypingState(null);
       }
     }, 2300);
+
     return () => clearTimeout(timer);
   }, [typingState]);
 
-  const isOwnMessage = useCallback((messageData) => {
-    const senderId = messageData.fromUserId || messageData.senderId || messageData.from;
-    return messageData.self === true || String(senderId) === String(userId) || messageData.from === userName;
-  }, [userId, userName]);
+  const isOwnMessage = useCallback(
+    (messageData) => {
+      const senderId = messageData.fromUserId || messageData.senderId || messageData.from;
+
+      return (
+        messageData.self === true ||
+        String(senderId) === String(userId) ||
+        messageData.from === userName
+      );
+    },
+    [userId, userName]
+  );
 
   const sendMessage = useCallback(async () => {
     if (!text.trim() || !isConnected || !chatPartnerId) return;
 
     if (text.trim().startsWith("/")) {
-      const result = await executeAssistantCommand({ input: text.trim(), roomId, messages, activeChatUser });
+      const result = await executeAssistantCommand({
+        input: text.trim(),
+        roomId,
+        messages,
+        activeChatUser,
+      });
+
       const assistantMessage = {
         localId: `assistant-${Date.now()}`,
         from: "assistant",
@@ -358,7 +450,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
         type: "assistant",
         reactions: {},
       };
+
       setMessages((prev) => [...prev, assistantMessage]);
+
       if (result.summary) {
         setSummaryState({
           loading: false,
@@ -367,6 +461,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
           updatedAt: result.summary.updatedAt,
         });
       }
+
       setText("");
       setCommandSuggestions([]);
       return;
@@ -385,178 +480,161 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       message: outgoingText,
       timestamp: now,
       type: secretMode ? "secret" : "text",
-      secret: secretMode ? {
-        challenge: String(Math.floor(Math.random() * 9000) + 1000),
-        hint: "Enter the 4-digit unlock code",
-        oneTime: true,
-      } : undefined,
+      secret: secretMode
+        ? {
+            challenge: String(Math.floor(Math.random() * 9000) + 1000),
+            hint: "Enter the 4-digit unlock code",
+            oneTime: true,
+          }
+        : undefined,
       reactions: {},
     };
 
     socketRef.current?.emit("private_message", payload);
     setMessages((prev) => [...prev, { ...payload, self: true }]);
-    const xpUpdate = awardMessageXp();
-    setXpState(xpUpdate);
-    setFriendshipStats(updateFriendshipInteraction({ partnerId: String(chatPartnerId) }));
     socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId });
+
     setText("");
     setSecretMode(false);
     setCommandSuggestions([]);
     inputRef.current?.focus();
-  }, [activeChatUser, chatPartnerId, isConnected, messages, roomId, secretMode, text, userId, userName, outgoingTonePreview]);
+  }, [
+    activeChatUser,
+    chatPartnerId,
+    isConnected,
+    messages,
+    roomId,
+    secretMode,
+    text,
+    userId,
+    userName,
+    outgoingTonePreview,
+  ]);
 
-  const applyReaction = useCallback((message, emoji) => {
-    const messageId = message.localId;
-    const mine = Array.isArray(message.reactions?.[emoji]) && message.reactions[emoji].includes(String(userId));
-    const action = mine ? "remove" : "add";
+  const applyReaction = useCallback(
+    (message, emoji) => {
+      const messageId = message.localId;
+      const mine =
+        Array.isArray(message.reactions?.[emoji]) &&
+        message.reactions[emoji].includes(String(userId));
 
-    setMessages((prev) => prev.map((entry) => {
-      if (entry.localId !== messageId) return entry;
-      const reactions = { ...(entry.reactions || {}) };
-      const set = new Set(Array.isArray(reactions[emoji]) ? reactions[emoji] : []);
-      if (action === "remove") set.delete(String(userId));
-      else set.add(String(userId));
-      reactions[emoji] = [...set];
-      return { ...entry, reactions };
-    }));
+      const action = mine ? "remove" : "add";
 
-    socketRef.current?.emit("message_reaction", { toUserId: chatPartnerId, messageId, emoji, action });
+      setMessages((prev) =>
+        prev.map((entry) => {
+          if (entry.localId !== messageId) return entry;
 
-    setReactionPulseId(messageId);
-    setTimeout(() => setReactionPulseId(null), 250);
-    if (reactionSoundEnabled) {
-      try { playReactionSound(); } catch { /* ignore */ }
-    }
-  }, [chatPartnerId, reactionSoundEnabled, userId]);
+          const reactions = { ...(entry.reactions || {}) };
+          const set = new Set(Array.isArray(reactions[emoji]) ? reactions[emoji] : []);
 
-  const unlockSecret = useCallback((message) => {
-    const code = window.prompt(message?.secret?.hint || "Enter unlock code");
-    if (!code) return;
-    if (String(code).trim() !== String(message.secret?.challenge || "")) {
-      alert("Incorrect code.");
-      return;
-    }
+          if (action === "remove") set.delete(String(userId));
+          else set.add(String(userId));
 
-    setUnlockedSecrets((prev) => ({ ...prev, [message.localId]: true }));
-    socketRef.current?.emit("secret_unlock", { toUserId: chatPartnerId, messageId: message.localId });
-  }, [chatPartnerId]);
+          reactions[emoji] = [...set];
+          return { ...entry, reactions };
+        })
+      );
 
-  const revealSecretBody = useCallback((message) => {
-    if (!message?.secret?.oneTime) return true;
-    if (secretViewed[message.localId]) return false;
-    setSecretViewed((prev) => ({ ...prev, [message.localId]: true }));
-    return true;
-  }, [secretViewed]);
+      socketRef.current?.emit("message_reaction", {
+        toUserId: chatPartnerId,
+        messageId,
+        emoji,
+        action,
+      });
 
-  const handleTypingInput = useCallback((value) => {
-    const now = Date.now();
-    const prev = typingMetricsRef.current;
-    const added = Math.max(0, value.length - prev.lastValue.length);
-    const removed = Math.max(0, prev.lastValue.length - value.length);
-    const interval = now - prev.lastTimestamp;
+      setReactionPulseId(messageId);
+      setTimeout(() => setReactionPulseId(null), 250);
 
-    const newChunk = added > 0 ? value.slice(-added) : "";
-    const punctuationDelta = (newChunk.match(/[!?.,;:]/g) || []).length;
-    const capsDelta = (newChunk.match(/[A-Z]/g) || []).length;
-    const alphaDelta = (newChunk.match(/[A-Za-z]/g) || []).length;
+      if (reactionSoundEnabled) {
+        try {
+          playReactionSound();
+        } catch {
+          // ignore audio errors
+        }
+      }
+    },
+    [chatPartnerId, reactionSoundEnabled, userId]
+  );
 
-    prev.lastValue = value;
-    prev.lastTimestamp = now;
+  const unlockSecret = useCallback(
+    (message) => {
+      const code = window.prompt(message?.secret?.hint || "Enter unlock code");
+      if (!code) return;
 
-    if (value.startsWith("/")) {
-      setCommandSuggestions(getCommandSuggestions(value));
-      setActiveCommandIndex(0);
-    } else {
-      setCommandSuggestions([]);
-    }
+      if (String(code).trim() !== String(message.secret?.challenge || "")) {
+        alert("Incorrect code.");
+        return;
+      }
 
-    if (!chatPartnerId || !socketRef.current) return;
+      setUnlockedSecrets((prev) => ({ ...prev, [message.localId]: true }));
+      socketRef.current?.emit("secret_unlock", {
+        toUserId: chatPartnerId,
+        messageId: message.localId,
+      });
+    },
+    [chatPartnerId]
+  );
 
-    if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
-    typingStopTimerRef.current = setTimeout(() => {
-      socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId });
-    }, 1600);
+  const revealSecretBody = useCallback(
+    (message) => {
+      if (!message?.secret?.oneTime) return true;
+      if (secretViewed[message.localId]) return false;
 
-    if (now - typingEmitCooldownRef.current < 750) return;
-    typingEmitCooldownRef.current = now;
+      setSecretViewed((prev) => ({ ...prev, [message.localId]: true }));
+      return true;
+    },
+    [secretViewed]
+  );
 
-    socketRef.current.emit("typing_metadata", {
-      toUserId: chatPartnerId,
-      metadata: buildTypingMetadata({
-        charDelta: added,
-        intervalMs: interval,
-        backspaceDelta: removed,
-        pauseMs: interval,
-        punctuationDelta,
-        capsDelta,
-        alphaDelta,
-      }),
-    });
-  }, [chatPartnerId]);
+  const handleTypingInput = useCallback(
+    (value) => {
+      const now = Date.now();
+      const prev = typingMetricsRef.current;
+      const added = Math.max(0, value.length - prev.lastValue.length);
+      const removed = Math.max(0, prev.lastValue.length - value.length);
+      const interval = now - prev.lastTimestamp;
 
-  const submitPoll = useCallback(() => {
-    if (!chatPartnerId || !isConnected) return;
-    const question = pollQuestion.trim();
-    const options = pollOptionsText
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .slice(0, 5);
+      const newChunk = added > 0 ? value.slice(-added) : "";
+      const punctuationDelta = (newChunk.match(/[!?.,;:]/g) || []).length;
+      const capsDelta = (newChunk.match(/[A-Z]/g) || []).length;
+      const alphaDelta = (newChunk.match(/[A-Za-z]/g) || []).length;
 
-    if (!question || options.length < 2) {
-      alert("Add a poll question and at least 2 options.");
-      return;
-    }
+      prev.lastValue = value;
+      prev.lastTimestamp = now;
 
-    const base = buildPollMessage({ userId, chatPartnerId, question, options });
-    const payload = {
-      ...base,
-      from: userName,
-      fromUserId: userId,
-      to: chatPartnerId,
-      toUserId: chatPartnerId,
-      self: true,
-    };
+      if (value.startsWith("/")) {
+        setCommandSuggestions(getCommandSuggestions(value));
+        setActiveCommandIndex(0);
+      } else {
+        setCommandSuggestions([]);
+      }
 
-    socketRef.current?.emit("private_message", payload);
-    setMessages((prev) => [...prev, payload]);
-    setPollQuestion("");
-    setPollOptionsText("Yes\nNo");
-    setShowInteractiveComposer(false);
-  }, [chatPartnerId, isConnected, pollOptionsText, pollQuestion, userId, userName]);
+      if (!chatPartnerId || !socketRef.current) return;
 
-  const sendMiniGame = useCallback(() => {
-    if (!chatPartnerId || !isConnected) return;
-    const base = buildMiniGameMessage({ userId, chatPartnerId });
-    const payload = {
-      ...base,
-      from: userName,
-      fromUserId: userId,
-      to: chatPartnerId,
-      toUserId: chatPartnerId,
-      self: true,
-    };
+      if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
 
-    socketRef.current?.emit("private_message", payload);
-    setMessages((prev) => [...prev, payload]);
-    setShowInteractiveComposer(false);
-  }, [chatPartnerId, isConnected, userId, userName]);
+      typingStopTimerRef.current = setTimeout(() => {
+        socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId });
+      }, 1600);
 
-  const votePoll = useCallback((messageId, optionId) => {
-    if (!messageId || !optionId) return;
-    setMessages((prev) => prev.map((entry) => (
-      entry.localId === messageId ? applyPollVote(entry, { optionId, voterId: userId }) : entry
-    )));
-    socketRef.current?.emit("poll_vote", { toUserId: chatPartnerId, messageId, optionId });
-  }, [chatPartnerId, userId]);
+      if (now - typingEmitCooldownRef.current < 750) return;
+      typingEmitCooldownRef.current = now;
 
-  const submitMiniGameAttempt = useCallback((messageId, choice) => {
-    if (!messageId || !choice) return;
-    setMessages((prev) => prev.map((entry) => (
-      entry.localId === messageId ? applyMiniGameAttempt(entry, { playerId: userId, choice }) : entry
-    )));
-    socketRef.current?.emit("mini_game_attempt", { toUserId: chatPartnerId, messageId, choice });
-  }, [chatPartnerId, userId]);
+      socketRef.current.emit("typing_metadata", {
+        toUserId: chatPartnerId,
+        metadata: buildTypingMetadata({
+          charDelta: added,
+          intervalMs: interval,
+          backspaceDelta: removed,
+          pauseMs: interval,
+          punctuationDelta,
+          capsDelta,
+          alphaDelta,
+        }),
+      });
+    },
+    [chatPartnerId]
+  );
 
   const shouldShowAvatar = (list, index) => {
     if (index === 0) return true;
@@ -567,6 +645,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
     const currentSender = current.from || current.sender;
     const previousSender = previous.from || previous.sender;
+
     return currentSender !== previousSender;
   };
 
@@ -589,8 +668,10 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   };
 
   const getInitials = (name = "") => {
-    const parts = String(name).split("\n").filter(Boolean);
-    if (parts.length > 1) return (parts[0][0] + parts[1][0]).toUpperCase();
+    const parts = String(name).split(" ").filter(Boolean);
+    if (parts.length > 1) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
     return (parts[0] || "?").slice(0, 2).toUpperCase();
   };
 
@@ -616,44 +697,111 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   };
 
   return (
-    <div className={`chat-app ${moodThemeEnabled ? `mood-${moodResult.mood}` : "mood-neutral"}`}>
-      {moodThemeEnabled && ["romantic", "happy"].includes(moodResult.mood) ? <div className="mood-particles" aria-hidden="true" /> : null}
+    <div
+      className={`chat-app ${
+        moodThemeEnabled ? `mood-${moodResult.mood}` : "mood-neutral"
+      }`}
+    >
+      {moodThemeEnabled && ["romantic", "happy"].includes(moodResult.mood) ? (
+        <div className="mood-particles" aria-hidden="true" />
+      ) : null}
+
       <div className="chat-container">
         <aside className="app-rail">
           <div className="rail-top">
-            <button className="rail-button active" aria-label="Chats">💬</button>
-            <button className="rail-button" aria-label="Contacts">👥</button>
-            <button className="rail-button" aria-label="Files">📁</button>
+            <button className="rail-button active" aria-label="Chats">
+              💬
+            </button>
+            <button className="rail-button" aria-label="Contacts">
+              👥
+            </button>
+            <button className="rail-button" aria-label="Files">
+              📁
+            </button>
           </div>
+
           <div className="rail-bottom">
-            <button className="rail-button" onClick={() => window.location.href = "/settings"} aria-label="Settings">⚙️</button>
-            <button className="rail-button" onClick={() => { clearSession(); socketRef.current?.disconnect(); window.location.href = "/login"; }} aria-label="Logout">↩</button>
+            <button
+              className="rail-button"
+              onClick={() => (window.location.href = "/settings")}
+              aria-label="Settings"
+            >
+              ⚙️
+            </button>
+            <button
+              className="rail-button"
+              onClick={() => {
+                clearSession();
+                socketRef.current?.disconnect();
+                window.location.href = "/login";
+              }}
+              aria-label="Logout"
+            >
+              ↩
+            </button>
           </div>
         </aside>
 
         <div className="contact-list-sidebar">
-          <ContactList onSelect={handleSelectChatUser} activeChatUser={activeChatUser} onContactsLoaded={handleContactsLoaded} onlineStatuses={onlineStatuses} />
+          <ContactList
+            onSelect={handleSelectChatUser}
+            activeChatUser={activeChatUser}
+            onContactsLoaded={handleContactsLoaded}
+            onlineStatuses={onlineStatuses}
+          />
         </div>
 
         <div className="chat-main">
           <div className="chat-header">
             <div className="header-left">
               <div className="avatar-container">
-                <div className="avatar" style={{ backgroundColor: getAvatarColor(activeChatUser?.username || activeChatUser?.email || "Chat") }}>
-                  <span>{activeChatUser ? getInitials(activeChatUser.username || activeChatUser.email) : "?"}</span>
+                <div
+                  className="avatar"
+                  style={{
+                    backgroundColor: getAvatarColor(
+                      activeChatUser?.username || activeChatUser?.email || "Chat"
+                    ),
+                  }}
+                >
+                  <span>
+                    {activeChatUser
+                      ? getInitials(activeChatUser.username || activeChatUser.email)
+                      : "?"}
+                  </span>
                 </div>
                 {activeChatUser && activeChatOnline && <div className="online-indicator" />}
               </div>
+
               <div className="header-info">
                 <h2>{activeChatUser?.username || activeChatUser?.email || "Select User"}</h2>
-                <p className="xp-badge">Lvl {levelInfo.level} · XP {xpState.xp}</p>
-                <p className="status-text">{!activeChatUser ? "Select a contact" : activeChatOnline ? "Online" : "Offline"}</p>
-                {activeChatUser && typingState?.label ? <p className="typing-emotion-indicator">{typingState.label}</p> : null}
+                <p className="status-text">
+                  {!activeChatUser ? "Select a contact" : activeChatOnline ? "Online" : "Offline"}
+                </p>
+                {activeChatUser && typingState?.label ? (
+                  <p className="typing-emotion-indicator">{typingState.label}</p>
+                ) : null}
               </div>
             </div>
+
             <div className="header-actions">
-              <button className="icon-button" onClick={() => { clearSession(); socketRef.current?.disconnect(); window.location.href = "/login"; }} title="Logout"><LogOut size={20} /></button>
-              <button className="icon-button" onClick={() => window.location.href = "/settings"}><Settings size={20} /></button>
+              <button
+                className="icon-button"
+                onClick={() => {
+                  clearSession();
+                  socketRef.current?.disconnect();
+                  window.location.href = "/login";
+                }}
+                title="Logout"
+              >
+                <LogOut size={20} />
+              </button>
+              <button
+                className="icon-button"
+                onClick={() => (window.location.href = "/settings")}
+                title="Settings"
+              >
+                <Settings size={20} />
+              </button>
             </div>
           </div>
 
@@ -662,120 +810,152 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
               <div>
                 <strong>{safetyWarning.title}</strong>
                 <p>Be careful before sharing sensitive data or sending payments.</p>
-                <button className="safety-why-btn" onClick={() => setShowSafetyWhy((prev) => !prev)}>
+                <button
+                  className="safety-why-btn"
+                  onClick={() => setShowSafetyWhy((prev) => !prev)}
+                >
                   {showSafetyWhy ? "Hide why" : "Why this warning?"}
                 </button>
+
                 {showSafetyWhy ? (
                   <ul>
-                    {safetyWarning.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+                    {safetyWarning.reasons.map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
                   </ul>
                 ) : null}
               </div>
-              <button className="safety-dismiss-btn" onClick={() => setSafetyWarning(null)}>Dismiss</button>
-            </div>
-          ) : null}
 
-
-          {friendshipInsightsEnabled && activeChatUser ? (
-            <div className="friendship-meter">
-              <strong>Friendship streak</strong>
-              <span>{friendshipInsight?.streakDays || 0} day streak · {friendshipInsight?.interactions || 0} interactions</span>
+              <button className="safety-dismiss-btn" onClick={() => setSafetyWarning(null)}>
+                Dismiss
+              </button>
             </div>
           ) : null}
 
           <div className="messages-container">
             <div className="messages-wrapper">
               {!activeChatUser ? (
-                <div className="empty-state"><div className="empty-icon">👤</div><h3>Select a user to chat</h3><p>Choose a contact from the sidebar to start messaging</p></div>
+                <div className="empty-state">
+                  <div className="empty-icon">👤</div>
+                  <h3>Select a user to chat</h3>
+                  <p>Choose a contact from the sidebar to start messaging</p>
+                </div>
               ) : messages.length === 0 ? (
-                <div className="empty-state"><div className="empty-icon">💬</div><h3>No messages yet</h3><p>Start the conversation with {activeChatUser.username || activeChatUser.email}!</p></div>
+                <div className="empty-state">
+                  <div className="empty-icon">💬</div>
+                  <h3>No messages yet</h3>
+                  <p>Start the conversation with {activeChatUser.username || activeChatUser.email}!</p>
+                </div>
               ) : (
                 messages.map((messageData, i) => {
                   const own = isOwnMessage(messageData);
                   const grouped = shouldGroupMessages(messages, i);
                   const showAvatar = !own && shouldShowAvatar(messages, i);
                   const senderName = messageData.from || messageData.sender || "Anonymous";
-                  const assistant = messageData.type === "assistant" || senderName === "assistant";
+                  const assistant =
+                    messageData.type === "assistant" || senderName === "assistant";
                   const isSecret = messageData.type === "secret";
                   const canReveal = own || unlockedSecrets[messageData.localId];
 
                   return (
-                    <div key={messageData.localId || i} className={`message-wrapper ${own ? "own" : "other"} ${grouped ? "grouped" : ""}`}>
-                      {showAvatar && !own ? <div className="message-avatar" style={{ backgroundColor: getAvatarColor(senderName) }}>{assistant ? <Bot size={14} /> : getInitials(senderName)}</div> : null}
+                    <div
+                      key={messageData.localId || i}
+                      className={`message-wrapper ${own ? "own" : "other"} ${
+                        grouped ? "grouped" : ""
+                      }`}
+                    >
+                      {showAvatar && !own ? (
+                        <div
+                          className="message-avatar"
+                          style={{ backgroundColor: getAvatarColor(senderName) }}
+                        >
+                          {assistant ? <Bot size={14} /> : getInitials(senderName)}
+                        </div>
+                      ) : null}
+
                       {!showAvatar && !own ? <div className="avatar-spacer" /> : null}
 
                       <div className="message-content">
-                        {!own && !grouped ? <div className="message-sender">{senderName}</div> : null}
-                        <div className={`message-bubble ${own ? "sent" : "received"} ${assistant ? "assistant-bubble" : ""} ${reactionPulseId === messageData.localId ? "reaction-pulse" : ""}`}>
+                        {!own && !grouped ? (
+                          <div className="message-sender">{senderName}</div>
+                        ) : null}
+
+                        <div
+                          className={`message-bubble ${own ? "sent" : "received"} ${
+                            assistant ? "assistant-bubble" : ""
+                          } ${reactionPulseId === messageData.localId ? "reaction-pulse" : ""}`}
+                        >
                           {isSecret && !canReveal ? (
                             <div className="secret-preview-card">
-                              <div className="secret-title"><Lock size={14} /> Secret message</div>
+                              <div className="secret-title">
+                                <Lock size={14} /> Secret message
+                              </div>
                               <p>Hidden preview. Unlock required.</p>
-                              <button className="secret-unlock-btn" onClick={() => unlockSecret(messageData)}>Unlock</button>
+                              <button
+                                className="secret-unlock-btn"
+                                onClick={() => unlockSecret(messageData)}
+                              >
+                                Unlock
+                              </button>
                             </div>
                           ) : (
                             <div className="message-text">
-                              {messageData.type === "poll" && messageData.poll ? (
-                                <div className="interactive-card">
-                                  <strong>{messageData.poll.question}</strong>
-                                  <div className="interactive-options">
-                                    {messageData.poll.options.map((option) => (
-                                      <button key={option.id} className="poll-option" onClick={() => votePoll(messageData.localId, option.id)}>
-                                        {option.label} ({Array.isArray(option.votes) ? option.votes.length : 0})
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              ) : messageData.type === "mini_game" && messageData.miniGame ? (
-                                <div className="interactive-card">
-                                  <strong>{messageData.message}</strong>
-                                  <p>{messageData.miniGame.prompt}</p>
-                                  <div className="interactive-options">
-                                    {messageData.miniGame.choices.map((choice) => (
-                                      <button key={choice} className="poll-option" onClick={() => submitMiniGameAttempt(messageData.localId, choice)}>
-                                        {choice}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              ) : (
-                                <>{isSecret ? (revealSecretBody(messageData) ? messageData.message : "Secret viewed once") : messageData.message}</>
-                              )}
+                              {isSecret
+                                ? revealSecretBody(messageData)
+                                  ? messageData.message
+                                  : "Secret viewed once"
+                                : messageData.message}
                             </div>
                           )}
 
                           <div className="message-footer">
                             <span className="message-time">{toTime(messageData.timestamp)}</span>
-                            {own ? <span className="message-status"><CheckCheck size={14} /></span> : null}
+                            {own ? (
+                              <span className="message-status">
+                                <CheckCheck size={14} />
+                              </span>
+                            ) : null}
                           </div>
 
                           {!assistant ? (
                             <>
-                            <div className="message-reactions">
-                              {QUICK_REACTION_EMOJIS.map((emoji) => {
-                                const count = Array.isArray(messageData.reactions?.[emoji]) ? messageData.reactions[emoji].length : 0;
-                                const mine = Array.isArray(messageData.reactions?.[emoji]) && messageData.reactions[emoji].includes(String(userId));
-                                return (
-                                  <button key={emoji} className={`reaction-chip ${mine ? "mine" : ""}`} onClick={() => applyReaction(messageData, emoji)}>
-                                    <span>{emoji}</span>
-                                    {count > 0 ? <small>{count}</small> : null}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            {getMessageIntentChips(messageData).length > 0 ? (
-                              <div className="intent-action-chips">
-                                {getMessageIntentChips(messageData).map((intent) => (
-                                  <button
-                                    key={intent.key}
-                                    className="intent-chip"
-                                    onClick={() => dismissIntentChip(messageData.localId, intent.key)}
-                                  >
-                                    {intent.label} ✕
-                                  </button>
-                                ))}
+                              <div className="message-reactions">
+                                {QUICK_REACTION_EMOJIS.map((emoji) => {
+                                  const count = Array.isArray(messageData.reactions?.[emoji])
+                                    ? messageData.reactions[emoji].length
+                                    : 0;
+                                  const mine =
+                                    Array.isArray(messageData.reactions?.[emoji]) &&
+                                    messageData.reactions[emoji].includes(String(userId));
+
+                                  return (
+                                    <button
+                                      key={emoji}
+                                      className={`reaction-chip ${mine ? "mine" : ""}`}
+                                      onClick={() => applyReaction(messageData, emoji)}
+                                    >
+                                      <span>{emoji}</span>
+                                      {count > 0 ? <small>{count}</small> : null}
+                                    </button>
+                                  );
+                                })}
                               </div>
-                            ) : null}
+
+                              {getMessageIntentChips(messageData).length > 0 ? (
+                                <div className="intent-action-chips">
+                                  {getMessageIntentChips(messageData).map((intent) => (
+                                    <button
+                                      key={intent.key}
+                                      className="intent-chip"
+                                      onClick={() =>
+                                        dismissIntentChip(messageData.localId, intent.key)
+                                      }
+                                    >
+                                      {intent.label} ✕
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
                             </>
                           ) : null}
                         </div>
@@ -784,6 +964,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                   );
                 })
               )}
+
               <div ref={messagesEndRef} />
             </div>
           </div>
@@ -792,10 +973,18 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             <div className="input-wrapper">
               {activeChatUser && !text.trim() && smartReplies.length > 0 ? (
                 <div className="smart-reply-row">
-                  <div className="smart-reply-title"><Sparkles size={14} /> Quick replies</div>
+                  <div className="smart-reply-title">
+                    <Sparkles size={14} /> Quick replies
+                  </div>
                   <div className="smart-reply-cards">
                     {smartReplies.slice(0, 5).map((reply) => (
-                      <button key={reply} className="smart-reply-card" onClick={() => setText(reply)}>{reply}</button>
+                      <button
+                        key={reply}
+                        className="smart-reply-card"
+                        onClick={() => setText(reply)}
+                      >
+                        {reply}
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -811,6 +1000,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                       <option value="concise">Concise</option>
                     </select>
                   </div>
+
                   <div className="tone-preview-grid">
                     <div>
                       <small>Original draft</small>
@@ -821,8 +1011,11 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                       <p>{outgoingTonePreview.rewritten}</p>
                     </div>
                   </div>
+
                   <div className="tone-preview-actions">
-                    <button onClick={() => setText(outgoingTonePreview.rewritten || text)}>Use converted</button>
+                    <button onClick={() => setText(outgoingTonePreview.rewritten || text)}>
+                      Use converted
+                    </button>
                     <span>{outgoingTonePreview.reason}</span>
                   </div>
                 </div>
@@ -847,24 +1040,15 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                 </div>
               ) : null}
 
-              <div className="interactive-composer-toggle">
-                <button onClick={() => setShowInteractiveComposer((prev) => !prev)} disabled={!activeChatUser}>Interactive +</button>
-              </div>
-
-              {showInteractiveComposer ? (
-                <div className="interactive-composer-panel">
-                  <h4>Interactive messages</h4>
-                  <input value={pollQuestion} onChange={(e) => setPollQuestion(e.target.value)} placeholder="Poll question" />
-                  <textarea value={pollOptionsText} onChange={(e) => setPollOptionsText(e.target.value)} placeholder="One option per line" rows={3} />
-                  <div className="interactive-actions">
-                    <button onClick={submitPoll}>Send Poll</button>
-                    <button onClick={sendMiniGame}>Send Mini-Game</button>
-                  </div>
-                </div>
-              ) : null}
-
               <div className="message-input-wrapper">
-                <button className={`secret-mode-toggle ${secretMode ? "active" : ""}`} onClick={() => setSecretMode((prev) => !prev)} title="Secret mode"><Lock size={16} /></button>
+                <button
+                  className={`secret-mode-toggle ${secretMode ? "active" : ""}`}
+                  onClick={() => setSecretMode((prev) => !prev)}
+                  title="Secret mode"
+                >
+                  <Lock size={16} />
+                </button>
+
                 <input
                   ref={inputRef}
                   type="text"
@@ -874,10 +1058,15 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                     handleTypingInput(e.target.value);
                   }}
                   onKeyDown={(e) => {
-                    if (commandSuggestions.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+                    if (
+                      commandSuggestions.length > 0 &&
+                      (e.key === "ArrowDown" || e.key === "ArrowUp")
+                    ) {
                       e.preventDefault();
                       setActiveCommandIndex((prev) => {
-                        if (e.key === "ArrowDown") return (prev + 1) % commandSuggestions.length;
+                        if (e.key === "ArrowDown") {
+                          return (prev + 1) % commandSuggestions.length;
+                        }
                         return prev === 0 ? commandSuggestions.length - 1 : prev - 1;
                       });
                       return;
@@ -898,11 +1087,26 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                       sendMessage();
                     }
                   }}
-                  placeholder={!activeChatUser ? "Select a user to chat" : isConnected ? (secretMode ? "Send secret message" : "Type a message or /command") : "Connecting..."}
+                  placeholder={
+                    !activeChatUser
+                      ? "Select a user to chat"
+                      : isConnected
+                      ? secretMode
+                        ? "Send secret message"
+                        : "Type a message or /command"
+                      : "Connecting..."
+                  }
                   disabled={!isConnected || !activeChatUser}
                   className="message-input"
                 />
-                <button onClick={sendMessage} disabled={!text.trim() || !isConnected || !activeChatUser} className="send-button"><Send size={20} /></button>
+
+                <button
+                  onClick={sendMessage}
+                  disabled={!text.trim() || !isConnected || !activeChatUser}
+                  className="send-button"
+                >
+                  <Send size={20} />
+                </button>
               </div>
             </div>
           </div>
@@ -910,25 +1114,40 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
         <aside className="chat-details">
           <div className="details-user-card">
-            <div className="details-avatar" style={{ backgroundColor: getAvatarColor(activeChatUser?.username || activeChatUser?.email || "User") }}>{getInitials(activeChatUser?.username || activeChatUser?.email || "U")}</div>
+            <div
+              className="details-avatar"
+              style={{
+                backgroundColor: getAvatarColor(
+                  activeChatUser?.username || activeChatUser?.email || "User"
+                ),
+              }}
+            >
+              {getInitials(activeChatUser?.username || activeChatUser?.email || "U")}
+            </div>
+
             <h3>{activeChatUser?.username || "No chat selected"}</h3>
             <p>{activeChatUser?.email || "Select a contact to view details"}</p>
-            {moodThemeEnabled ? <p className="chat-mood-chip">Mood: {moodResult.mood} · {Math.round(moodResult.confidence * 100)}%</p> : null}
-          </div>
 
-          <label className="friendship-privacy-toggle">
-            <input type="checkbox" checked={friendshipInsightsEnabled} onChange={(e) => setFriendshipInsightsEnabled(e.target.checked)} />
-            Show friendship insights
-          </label>
+            {moodThemeEnabled ? (
+              <p className="chat-mood-chip">
+                Mood: {moodResult.mood} · {Math.round(moodResult.confidence * 100)}%
+              </p>
+            ) : null}
+          </div>
 
           <div className="details-section summary-panel">
             <div className="summary-header-row">
               <div className="details-section-header">Conversation Summary</div>
-              <button className="summary-refresh" onClick={() => refreshSummary(true)} disabled={summaryState.loading}>
+              <button
+                className="summary-refresh"
+                onClick={() => refreshSummary(true)}
+                disabled={summaryState.loading}
+              >
                 <RefreshCw size={14} className={summaryState.loading ? "spinning" : ""} />
                 Refresh
               </button>
             </div>
+
             <p className="summary-text">{summaryState.summary}</p>
             <p className="summary-meta">
               Source: {summaryState.source}
