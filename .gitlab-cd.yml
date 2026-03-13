@@ -1,0 +1,62 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+
+services:
+  - docker:dind
+
+before_script:
+  - docker info
+
+build_socket_gateway:
+  stage: build
+  image: docker:24
+  script:
+    - docker build -t socket-gateway ./services/socket-gateway
+
+build_message_worker:
+  stage: build
+  image: docker:24
+  script:
+    - docker build -t message-worker ./services/message-worker
+
+build_api_service:
+  stage: build
+  image: docker:24
+  script:
+    - docker build -t api-service ./services/api-service
+
+deploy_socket_gateway:
+  stage: deploy
+  image: curlimages/curl:8.6.0
+  script:
+    - curl -fsS -X POST "$RENDER_HOOK_SOCKET"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+
+deploy_api_service:
+  stage: deploy
+  image: curlimages/curl:8.6.0
+  script:
+    - curl -fsS -X POST "$RENDER_HOOK_API"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+
+deploy_auth_service:
+  stage: deploy
+  image: curlimages/curl:8.6.0
+  script:
+    - curl -fsS -X POST "$RENDER_HOOK_AUTH"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+
+deploy_frontend:
+  stage: deploy
+  image: curlimages/curl:8.6.0
+  script:
+    - curl -fsS -X POST "$RENDER_HOOK_FRONTEND"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'

@@ -1,0 +1,19 @@
+VOICE + COLLABORATION
+
+Implement:
+14. Voice Notes with Live Transcription + Emotion Tag
+15. Shared Whiteboard / Sketch Pad in Chat
+
+Requirements
+
+integrate into existing attachment/message toolbar
+
+do not disrupt current send flow
+
+transcript searchable
+
+whiteboard as modal/panel route depending current architecture
+
+mobile touch support
+
+socket sync optimization

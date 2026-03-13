@@ -1,8 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./Settings.css";
-import { ArrowLeft, User, LogOut, Upload, Save, Settings as SettingsIcon, UserCircle, MessageSquare } from "lucide-react";
+import { ArrowLeft, User, Upload, Save, UserCircle, MessageSquare } from "lucide-react";
 
 const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
+
+
+function normalizeProfilePicUrl(value) {
+  if (typeof value !== "string") return "";
+  return value.startsWith("/uploads/") ? value : "";
+}
 
 export default function Settings() {
   const [profile, setProfile] = useState(null);
@@ -10,8 +16,16 @@ export default function Settings() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
+  const [moodThemeEnabled, setMoodThemeEnabled] = useState(() => localStorage.getItem("feature:moodThemeEnabled") !== "false");
+  const [typingEmotionEnabled, setTypingEmotionEnabled] = useState(() => localStorage.getItem("feature:typingEmotionEnabled") !== "false");
+  const [reactionSoundEnabled, setReactionSoundEnabled] = useState(() => localStorage.getItem("feature:reactionSoundEnabled") !== "false");
   const token = localStorage.getItem("token");
 
+  const profileImageUrl = useMemo(() => {
+    if (!profile?.profilePicUrl) return "";
+    return `${AUTH_API_URL}${profile.profilePicUrl}`;
+  }, [profile?.profilePicUrl]);
 
   useEffect(() => {
     // Enable scrolling on settings page
@@ -41,7 +55,7 @@ export default function Settings() {
         let data;
         try {
           data = await res.json();
-        } catch (e) {
+        } catch {
           // If response is not JSON, get text
           const text = await res.text();
           throw new Error(text || `Server error (${res.status})`);
@@ -59,8 +73,9 @@ export default function Settings() {
         console.log("Profile loaded:", data);
         console.log("Profile picture URL:", data.profilePicUrl);
         console.log("Full image URL:", data.profilePicUrl ? `${AUTH_API_URL}${data.profilePicUrl}` : "No URL");
-        setProfile(data);
+        setProfile({ ...data, profilePicUrl: normalizeProfilePicUrl(data.profilePicUrl) });
         setStatus(data.status || "");
+        setImageLoadFailed(false);
         setError("");
       })
       .catch(err => {
@@ -90,6 +105,18 @@ export default function Settings() {
       });
   }, [token]);
 
+  useEffect(() => {
+    localStorage.setItem("feature:moodThemeEnabled", String(moodThemeEnabled));
+  }, [moodThemeEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem("feature:typingEmotionEnabled", String(typingEmotionEnabled));
+  }, [typingEmotionEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem("feature:reactionSoundEnabled", String(reactionSoundEnabled));
+  }, [reactionSoundEnabled]);
+
   const saveStatus = async () => {
     if (!token) return;
     
@@ -110,7 +137,7 @@ export default function Settings() {
         throw new Error("Failed to update status");
       }
 
-      const data = await res.json();
+      await res.json();
       setSuccessMessage("Status updated successfully");
       setError("");
       setTimeout(() => setSuccessMessage(""), 3000);
@@ -155,38 +182,38 @@ export default function Settings() {
         body: formData
       });
 
-      // Read response body only once
-      const data = await res.json();
+      const rawBody = await res.text();
+      let data = {};
+      if (rawBody) {
+        try {
+          data = JSON.parse(rawBody);
+        } catch {
+          data = { message: rawBody };
+        }
+      }
 
       if (!res.ok) {
         throw new Error(data.message || data.error || `Failed to upload profile picture (${res.status})`);
       }
-  
-      console.log("Upload response:", data);
-      console.log("New profilePicUrl:", data.profilePicUrl);
-      console.log("Full image URL will be:", `${AUTH_API_URL}${data.profilePicUrl}`);
-  
-      // Update profile with new image URL
-      const updatedProfile = {
-        ...profile,
-        profilePicUrl: data.profilePicUrl
-      };
-      setProfile(updatedProfile);
+
+      const newProfilePicUrl = normalizeProfilePicUrl(data.profilePicUrl);
+      if (!newProfilePicUrl) {
+        throw new Error("Upload succeeded but no profile image URL returned");
+      }
+
+      // Update profile immediately in UI and reset broken-image state
+      setProfile((prev) => ({ ...(prev || {}), profilePicUrl: newProfilePicUrl }));
+      setImageLoadFailed(false);
       setError("");
       setSuccessMessage("Profile picture updated successfully");
       setTimeout(() => setSuccessMessage(""), 3000);
-      
+
       // Reset file input
       e.target.value = "";
     } catch (err) {
       console.error("Error uploading profile picture:", err);
-      // Handle JSON parse errors
-      if (err.name === "SyntaxError" || err.message.includes("JSON")) {
-        setError("Invalid response from server. Please try again.");
-      } else {
-        const errorMessage = err.message || "Failed to upload profile picture. Please try again.";
-        setError(errorMessage);
-      }
+      const errorMessage = err.message || "Failed to upload profile picture. Please try again.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -216,7 +243,7 @@ export default function Settings() {
             <button onClick={() => window.location.reload()} className="retry-button">
               Retry
             </button>
-            <a href="/" className="error-link">Go back to chat</a>
+            <a href="/app" className="error-link">Go back to chat</a>
           </div>
         </div>
       </div>
@@ -237,7 +264,7 @@ export default function Settings() {
         <div className="settings-card">
           <div className="settings-header">
             <h2>Account Settings</h2>
-            <button onClick={() => window.location.href = "/"} className="back-button">
+            <button onClick={() => window.location.href = "/app"} className="back-button">
               <ArrowLeft size={18} />
               Back to Chat
             </button>
@@ -263,33 +290,20 @@ export default function Settings() {
               </div>
               <div className="profile-picture-section">
                 <div className="profile-picture-wrapper">
-                  {profile?.profilePicUrl ? (
+                  {profileImageUrl && !imageLoadFailed ? (
                     <img
-                      src={`${AUTH_API_URL}${profile.profilePicUrl}?t=${Date.now()}`}
+                      src={profileImageUrl}
                       alt="Profile"
                       className="profile-picture"
-                      key={profile.profilePicUrl}
-                      onError={(e) => {
-                        const imageUrl = `${AUTH_API_URL}${profile.profilePicUrl}`;
-                        console.error("Failed to load profile picture from:", imageUrl);
-                        console.error("Error details:", e);
-                        // Hide the broken image and show placeholder
-                        if (e.target) {
-                          e.target.style.display = "none";
-                        }
-                        const placeholder = e.target?.nextSibling || e.target?.parentElement?.querySelector('.profile-picture-placeholder');
-                        if (placeholder) {
-                          placeholder.style.display = "flex";
-                        }
-                      }}
-                      onLoad={() => {
-                        console.log("Profile picture loaded successfully:", `${AUTH_API_URL}${profile.profilePicUrl}`);
+                      key={profileImageUrl}
+                      onError={() => {
+                        setImageLoadFailed(true);
                       }}
                     />
                   ) : null}
                   <div 
                     className="profile-picture-placeholder"
-                    style={{ display: profile?.profilePicUrl ? "none" : "flex" }}
+                    style={{ display: profileImageUrl && !imageLoadFailed ? "none" : "flex" }}
                   >
                     {profile?.username?.charAt(0)?.toUpperCase() || "U"}
                   </div>
@@ -331,6 +345,57 @@ export default function Settings() {
                   <span className="info-label">Email Address</span>
                   <span className="info-value">{profile?.email}</span>
                 </div>
+              </div>
+            </div>
+
+
+            <div className="settings-section">
+              <div className="section-header">
+                <h3 className="section-title">
+                  <MessageSquare size={20} />
+                  Chat Experience
+                </h3>
+                <p className="section-description">
+                  Tune premium interaction features for mood themes and typing emotion indicators
+                </p>
+              </div>
+
+              <div className="feature-toggle-list">
+                <label className="feature-toggle-item">
+                  <span>
+                    <strong>Mood-based chat theme</strong>
+                    <small>Auto-switch ambient gradients based on recent conversation sentiment</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={moodThemeEnabled}
+                    onChange={(e) => setMoodThemeEnabled(e.target.checked)}
+                  />
+                </label>
+
+                <label className="feature-toggle-item">
+                  <span>
+                    <strong>Live typing emotion indicator</strong>
+                    <small>Show privacy-safe typing tone like excitedly, carefully, or aggressively</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={typingEmotionEnabled}
+                    onChange={(e) => setTypingEmotionEnabled(e.target.checked)}
+                  />
+                </label>
+
+                <label className="feature-toggle-item">
+                  <span>
+                    <strong>Reaction sound microfeedback</strong>
+                    <small>Play a subtle sound when you react to messages</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={reactionSoundEnabled}
+                    onChange={(e) => setReactionSoundEnabled(e.target.checked)}
+                  />
+                </label>
               </div>
             </div>
 

@@ -1,17 +1,19 @@
 import { useState, useEffect } from "react";
+import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
-// import ContactList from "./components/ContactList";
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState(() => {
     const path = window.location.pathname;
+    if (path === "/") return "landing";
     if (path === "/login") return "login";
     if (path === "/signup") return "signup";
+    if (path === "/app") return "chat";
     if (path === "/settings") return "settings";
-    return "chat";
+    return "landing";
   });
 
   const token = localStorage.getItem("token");
@@ -21,27 +23,41 @@ export default function App() {
     // Handle browser navigation
     const handlePopState = () => {
       const path = window.location.pathname;
-      if (path === "/login") setCurrentPage("login");
+      if (path === "/") setCurrentPage("landing");
+      else if (path === "/login") setCurrentPage("login");
       else if (path === "/signup") setCurrentPage("signup");
+      else if (path === "/app") setCurrentPage("chat");
       else if (path === "/settings") setCurrentPage("settings");
-      else setCurrentPage("chat");
-
+      else setCurrentPage("landing");
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  // Redirect to login if no token and trying to access chat or settings
-  if (!token && (currentPage === "chat" || currentPage === "settings")) {
-    window.location.href = "/login";
+  useEffect(() => {
+    // Redirect to login if no token and trying to access chat or settings
+    if (!token && (currentPage === "chat" || currentPage === "settings")) {
+      window.location.replace("/login");
+      return;
+    }
+
+    // Redirect to chat if has token and on login/signup
+    if (token && (currentPage === "login" || currentPage === "signup")) {
+      window.location.replace("/app");
+    }
+  }, [currentPage, token]);
+
+  const isRedirecting =
+    (!token && (currentPage === "chat" || currentPage === "settings")) ||
+    (token && (currentPage === "login" || currentPage === "signup"));
+
+  if (isRedirecting) {
     return null;
   }
 
-  // Redirect to chat if has token and on login/signup
-  if (token && (currentPage === "login" || currentPage === "signup")) {
-    window.location.href = "/";
-    return null;
+  if (currentPage === "landing") {
+    return <Landing />;
   }
 
   if (currentPage === "login") {
