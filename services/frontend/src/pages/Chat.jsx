@@ -137,6 +137,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const [typingState, setTypingState] = useState(null);
   const [smartReplies, setSmartReplies] = useState([]);
   const [reactionPulseId, setReactionPulseId] = useState(null);
+  const [secretMode, setSecretMode] = useState(false);
   const [unlockedSecrets, setUnlockedSecrets] = useState({});
   const [secretViewed, setSecretViewed] = useState({});
   const [summaryState, setSummaryState] = useState({
@@ -1012,11 +1013,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
   const shouldShowAvatar = (list, index) => {
     if (index === 0) return true;
-
     const current = list[index];
     const previous = list[index - 1];
     if (!current || !previous) return true;
-
     const currentSender = current.from || current.sender;
     const previousSender = previous.from || previous.sender;
     return currentSender !== previousSender;
@@ -1024,19 +1023,15 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
   const shouldGroupMessages = (list, index) => {
     if (index === 0) return false;
-
     const current = list[index];
     const previous = list[index - 1];
     if (!current || !previous) return false;
-
     const currentSender = current.from || current.sender;
     const previousSender = previous.from || previous.sender;
     const sameSender = currentSender === previousSender;
-
     const currentTs = Number(current.timestamp || 0);
     const previousTs = Number(previous.timestamp || 0);
     const withinFiveMinutes = Math.abs(currentTs - previousTs) < 300000;
-
     return sameSender && withinFiveMinutes;
   };
 
