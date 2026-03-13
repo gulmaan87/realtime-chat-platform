@@ -29,6 +29,25 @@ import {
   detectScamSignals,
   generateTonePreview,
 } from "../services/aiProductivityService";
+
+// ✅ KEEP GAMIFICATION
+import XpBadge from "../components/chat/XpBadge";
+import FriendshipPanel from "../components/chat/FriendshipPanel";
+import PollMessage from "../components/chat/PollMessage";
+import MiniGameMessage from "../components/chat/MiniGameMessage";
+import InteractiveComposer from "../components/chat/InteractiveComposer";
+import {
+  applyMiniGameAttempt,
+  applyPollVote,
+  awardMessageXp,
+  buildMiniGameMessage,
+  buildPollMessage,
+  deriveLevel,
+  getStoredXpState,
+  loadFriendshipStats,
+  updateFriendshipInteraction,
+} from "../services/gamificationSocialService";
+
 import "../App.css";
 
 const MOOD_THEME_TOGGLE_KEY = "feature:moodThemeEnabled";
@@ -36,7 +55,13 @@ const TYPING_EMOTION_TOGGLE_KEY = "feature:typingEmotionEnabled";
 const REACTION_SOUND_TOGGLE_KEY = "feature:reactionSoundEnabled";
 const QUICK_REACTION_EMOJIS = ["👍", "❤️", "😂", "🔥", "😮"];
 
+function safeStorageGet(key, fallback = "true") {
+  if (typeof window === "undefined") return fallback;
+  return localStorage.getItem(key) ?? fallback;
+}
+
 function playReactionSound() {
+  if (typeof window === "undefined") return;
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtx) return;
 
@@ -118,6 +143,10 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const [safetyWarning, setSafetyWarning] = useState(null);
   const [showSafetyWhy, setShowSafetyWhy] = useState(false);
 
+  // ✅ KEEP GAMIFICATION STATE
+  const [xpState, setXpState] = useState(() => getStoredXpState());
+  const [friendshipStats, setFriendshipStats] = useState(() => loadFriendshipStats());
+
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const typingMetricsRef = useRef({ lastValue: "", lastTimestamp: 0 });
@@ -143,12 +172,17 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     return [String(chatPartnerId), String(userId)].sort().join(":");
   }, [chatPartnerId, userId]);
 
-  const moodThemeEnabled =
-    localStorage.getItem(MOOD_THEME_TOGGLE_KEY) !== "false";
+  const moodThemeEnabled = safeStorageGet(MOOD_THEME_TOGGLE_KEY, "true") !== "false";
   const typingEmotionEnabled =
-    localStorage.getItem(TYPING_EMOTION_TOGGLE_KEY) !== "false";
+    safeStorageGet(TYPING_EMOTION_TOGGLE_KEY, "true") !== "false";
   const reactionSoundEnabled =
-    localStorage.getItem(REACTION_SOUND_TOGGLE_KEY) !== "false";
+    safeStorageGet(REACTION_SOUND_TOGGLE_KEY, "true") !== "false";
+
+  // ✅ KEEP GAMIFICATION DERIVED STATE
+  const levelInfo = useMemo(() => deriveLevel(xpState.xp), [xpState]);
+  const friendshipInsight = chatPartnerId
+    ? friendshipStats[String(chatPartnerId)]
+    : null;
 
   const moodResult = useMemo(
     () =>
@@ -334,6 +368,29 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       }
     });
 
+    // ✅ KEEP GAMIFICATION SOCKET EVENTS
+    socket.on("poll_vote", ({ messageId, optionId, voterId }) => {
+      if (!messageId || !optionId || !voterId) return;
+      setMessages((prev) =>
+        prev.map((entry) =>
+          entry.localId === messageId
+            ? applyPollVote(entry, { optionId, voterId })
+            : entry
+        )
+      );
+    });
+
+    socket.on("mini_game_attempt", ({ messageId, playerId, choice }) => {
+      if (!messageId || !playerId || !choice) return;
+      setMessages((prev) =>
+        prev.map((entry) =>
+          entry.localId === messageId
+            ? applyMiniGameAttempt(entry, { playerId, choice })
+            : entry
+        )
+      );
+    });
+
     socket.on("disconnect", () => setIsConnected(false));
     socket.connect();
 
@@ -347,6 +404,8 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
         "presence_snapshot",
         "typing_metadata",
         "typing_stop",
+        "poll_vote",
+        "mini_game_attempt",
         "disconnect",
       ].forEach((eventName) => socket.off(eventName));
 
@@ -397,7 +456,6 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     }
 
     loadHistory();
-
     return () => {
       mounted = false;
     };
@@ -492,6 +550,12 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
     socketRef.current?.emit("private_message", payload);
     setMessages((prev) => [...prev, { ...payload, self: true }]);
+
+    // ✅ KEEP GAMIFICATION ON SEND
+    const xpUpdate = awardMessageXp();
+    setXpState(xpUpdate);
+    setFriendshipStats(updateFriendshipInteraction({ partnerId: String(chatPartnerId) }));
+
     socketRef.current?.emit("typing_stop", { toUserId: chatPartnerId });
 
     setText("");
@@ -636,6 +700,93 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     [chatPartnerId]
   );
 
+  // ✅ KEEP GAMIFICATION ACTIONS
+  const submitPoll = useCallback(
+    ({ question, options }) => {
+      if (!chatPartnerId || !isConnected) return;
+
+      if (!question || !Array.isArray(options) || options.length < 2) {
+        alert("Add a poll question and at least 2 options.");
+        return;
+      }
+
+      const base = buildPollMessage({ userId, chatPartnerId, question, options });
+      const payload = {
+        ...base,
+        from: userName,
+        fromUserId: userId,
+        to: chatPartnerId,
+        toUserId: chatPartnerId,
+        self: true,
+      };
+
+      socketRef.current?.emit("private_message", payload);
+      setMessages((prev) => [...prev, payload]);
+    },
+    [chatPartnerId, isConnected, userId, userName]
+  );
+
+  const sendMiniGame = useCallback(() => {
+    if (!chatPartnerId || !isConnected) return;
+
+    const base = buildMiniGameMessage({ userId, chatPartnerId });
+    const payload = {
+      ...base,
+      from: userName,
+      fromUserId: userId,
+      to: chatPartnerId,
+      toUserId: chatPartnerId,
+      self: true,
+    };
+
+    socketRef.current?.emit("private_message", payload);
+    setMessages((prev) => [...prev, payload]);
+  }, [chatPartnerId, isConnected, userId, userName]);
+
+  const votePoll = useCallback(
+    (messageId, optionId) => {
+      if (!messageId || !optionId) return;
+
+      setMessages((prev) =>
+        prev.map((entry) =>
+          entry.localId === messageId
+            ? applyPollVote(entry, { optionId, voterId: userId })
+            : entry
+        )
+      );
+
+      socketRef.current?.emit("poll_vote", {
+        toUserId: chatPartnerId,
+        messageId,
+        optionId,
+        voterId: userId,
+      });
+    },
+    [chatPartnerId, userId]
+  );
+
+  const submitMiniGameAttempt = useCallback(
+    (messageId, choice) => {
+      if (!messageId || !choice) return;
+
+      setMessages((prev) =>
+        prev.map((entry) =>
+          entry.localId === messageId
+            ? applyMiniGameAttempt(entry, { playerId: userId, choice })
+            : entry
+        )
+      );
+
+      socketRef.current?.emit("mini_game_attempt", {
+        toUserId: chatPartnerId,
+        messageId,
+        playerId: userId,
+        choice,
+      });
+    },
+    [chatPartnerId, userId]
+  );
+
   const shouldShowAvatar = (list, index) => {
     if (index === 0) return true;
 
@@ -645,7 +796,6 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
     const currentSender = current.from || current.sender;
     const previousSender = previous.from || previous.sender;
-
     return currentSender !== previousSender;
   };
 
@@ -774,9 +924,14 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
               <div className="header-info">
                 <h2>{activeChatUser?.username || activeChatUser?.email || "Select User"}</h2>
+
+                {/* ✅ KEEP XP BADGE */}
+                <XpBadge xpState={xpState} levelInfo={levelInfo} />
+
                 <p className="status-text">
                   {!activeChatUser ? "Select a contact" : activeChatOnline ? "Online" : "Offline"}
                 </p>
+
                 {activeChatUser && typingState?.label ? (
                   <p className="typing-emotion-indicator">{typingState.label}</p>
                 ) : null}
@@ -831,6 +986,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
               </button>
             </div>
           ) : null}
+
+          {/* ✅ KEEP FRIENDSHIP PANEL */}
+          {activeChatUser ? <FriendshipPanel friendshipInsight={friendshipInsight} /> : null}
 
           <div className="messages-container">
             <div className="messages-wrapper">
@@ -900,11 +1058,27 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                             </div>
                           ) : (
                             <div className="message-text">
-                              {isSecret
-                                ? revealSecretBody(messageData)
-                                  ? messageData.message
-                                  : "Secret viewed once"
-                                : messageData.message}
+                              {messageData.type === "poll" && messageData.poll ? (
+                                <PollMessage
+                                  message={messageData}
+                                  currentUserId={userId}
+                                  onVote={votePoll}
+                                />
+                              ) : messageData.type === "mini_game" && messageData.miniGame ? (
+                                <MiniGameMessage
+                                  message={messageData}
+                                  currentUserId={userId}
+                                  onAttempt={submitMiniGameAttempt}
+                                />
+                              ) : isSecret ? (
+                                revealSecretBody(messageData) ? (
+                                  messageData.message
+                                ) : (
+                                  "Secret viewed once"
+                                )
+                              ) : (
+                                messageData.message
+                              )}
                             </div>
                           )}
 
@@ -1039,6 +1213,13 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
                   ))}
                 </div>
               ) : null}
+
+              {/* ✅ KEEP GAMIFICATION COMPOSER */}
+              <InteractiveComposer
+                onSendPoll={submitPoll}
+                onSendMiniGame={sendMiniGame}
+                disabled={!activeChatUser || !isConnected}
+              />
 
               <div className="message-input-wrapper">
                 <button
