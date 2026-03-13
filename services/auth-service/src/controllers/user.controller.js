@@ -16,7 +16,9 @@ exports.getMyProfile = async (req, res) => {
       username: req.user.username,
       email: req.user.email,
       status: req.user.status,
-      profilePicUrl: req.user.profilePicUrl
+      profilePicUrl: req.user.profilePicUrl,
+      gamification: req.user.gamification || { xp: 0, level: 1, badges: [] },
+      socialPrivacy: req.user.socialPrivacy || { showFriendshipInsights: true }
     };
 
     console.log("Profile found:", { username: userData.username, email: userData.email });
@@ -45,5 +47,30 @@ exports.updateStatus = async (req, res) => {
   } catch (error) {
     console.error("Error updating status:", error);
     res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+// UPDATE FRIENDSHIP INSIGHTS PRIVACY
+exports.updateFriendshipPrivacy = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized: user not found from token" });
+    }
+
+    const showFriendshipInsights = req.body?.showFriendshipInsights !== false;
+    req.user.socialPrivacy = {
+      ...(req.user.socialPrivacy || {}),
+      showFriendshipInsights,
+    };
+
+    await req.user.save();
+    return res.json({
+      message: "Friendship insight privacy updated",
+      socialPrivacy: req.user.socialPrivacy,
+    });
+  } catch (error) {
+    console.error("Error updating friendship privacy:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
