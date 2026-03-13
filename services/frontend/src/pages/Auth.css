@@ -1,8 +1,9 @@
 .auth-container {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: clamp(12px, 4vw, 24px);
   background:
     radial-gradient(circle at 15% 18%, rgba(34, 211, 238, 0.16), transparent 24%),
     radial-gradient(circle at 82% 20%, rgba(139, 92, 246, 0.2), transparent 28%),
@@ -11,8 +12,8 @@
 
 .auth-card {
   width: min(100%, 460px);
-  padding: 36px;
-  border-radius: 28px;
+  padding: clamp(24px, 6vw, 36px);
+  border-radius: clamp(20px, 5vw, 28px);
   border: 1px solid var(--border-soft);
   background:
     linear-gradient(180deg, rgba(18, 24, 42, 0.92), rgba(10, 14, 28, 0.9)),
@@ -24,16 +25,16 @@
 
 .auth-header {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: clamp(20px, 5vw, 28px);
 }
 
 .auth-icon {
-  width: 72px;
-  height: 72px;
+  width: clamp(64px, 12vw, 72px);
+  height: clamp(64px, 12vw, 72px);
   margin: 0 auto 18px;
   display: grid;
   place-items: center;
-  border-radius: 22px;
+  border-radius: clamp(18px, 4vw, 22px);
   color: white;
   background: linear-gradient(135deg, rgba(139, 92, 246, 0.95), rgba(34, 211, 238, 0.8));
   box-shadow: 0 20px 40px rgba(139, 92, 246, 0.22);
@@ -41,7 +42,7 @@
 
 .auth-header h1 {
   margin-bottom: 8px;
-  font-size: 2rem;
+  font-size: clamp(1.5rem, 5vw, 2rem);
   line-height: 1.1;
   color: var(--text-primary);
   letter-spacing: -0.04em;
@@ -49,11 +50,17 @@
 
 .auth-header p {
   color: var(--text-muted);
+  font-size: clamp(0.88rem, 2.5vw, 1rem);
 }
 
-.auth-form {
-  display: grid;
-  gap: 14px;
+@media (max-width: 480px) {
+  .auth-header p {
+    font-size: 0.92rem;
+  }
+
+  .auth-footer {
+    font-size: 0.92rem;
+  }
 }
 
 .input-group {

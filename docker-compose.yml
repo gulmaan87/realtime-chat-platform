@@ -60,6 +60,8 @@ services:
     build: ./services/frontend
     ports:
       - "5173:80"
+    env_file:
+      - .env
     depends_on:
       - api-service
       - socket-gateway

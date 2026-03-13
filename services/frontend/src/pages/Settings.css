@@ -1,8 +1,10 @@
 .settings-container {
   min-height: 100vh;
-  padding: 24px;
+  min-height: 100dvh;
+  padding: clamp(12px, 4vw, 24px);
   display: flex;
   justify-content: center;
+  align-items: flex-start;
   background:
     radial-gradient(circle at 14% 18%, rgba(34, 211, 238, 0.14), transparent 24%),
     radial-gradient(circle at 84% 18%, rgba(139, 92, 246, 0.18), transparent 28%),
@@ -12,7 +14,7 @@
 .settings-card,
 .error-card {
   width: min(100%, 920px);
-  border-radius: 30px;
+  border-radius: clamp(20px, 5vw, 30px);
   border: 1px solid var(--border-soft);
   background:
     linear-gradient(180deg, rgba(18, 24, 42, 0.92), rgba(10, 14, 28, 0.9)),
@@ -22,21 +24,17 @@
   -webkit-backdrop-filter: blur(18px);
 }
 
-.settings-card {
-  overflow: hidden;
-}
-
 .settings-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 28px 32px;
+  padding: clamp(20px, 5vw, 28px) clamp(20px, 5vw, 32px);
   border-bottom: 1px solid var(--border-soft);
 }
 
 .settings-header h2 {
-  font-size: 2rem;
+  font-size: clamp(1.5rem, 5vw, 2rem);
   color: var(--text-primary);
   letter-spacing: -0.04em;
 }
@@ -44,122 +42,39 @@
 .settings-content {
   display: grid;
   gap: 20px;
-  padding: 28px 32px 32px;
-}
-
-.settings-section {
-  padding: 22px;
-  border-radius: 24px;
-  border: 1px solid var(--border-soft);
-  background: rgba(255, 255, 255, 0.03);
-  box-shadow: var(--shadow-card);
-}
-
-.section-header {
-  margin-bottom: 18px;
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-  color: var(--text-primary);
-}
-
-.section-description,
-.info-label,
-.feature-toggle-item small,
-.loading-text,
-.error-card p {
-  color: var(--text-muted);
-}
-
-.back-button,
-.file-input-label,
-.save-button,
-.retry-button,
-.error-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 12px 18px;
-  border-radius: 16px;
-  border: 1px solid var(--border-soft);
-  cursor: pointer;
-  text-decoration: none;
-  transition:
-    transform var(--transition-fast),
-    box-shadow var(--transition-fast),
-    opacity var(--transition-fast);
-}
-
-.back-button,
-.error-link {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-secondary);
-}
-
-.file-input-label,
-.save-button,
-.retry-button {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.92), rgba(34, 211, 238, 0.78));
-  color: white;
-  border-color: rgba(139, 92, 246, 0.3);
-}
-
-.back-button:hover,
-.file-input-label:hover:not(:disabled),
-.save-button:hover:not(:disabled),
-.retry-button:hover,
-.error-link:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.24);
-}
-
-.profile-picture-section {
-  display: grid;
-  justify-items: center;
-  gap: 20px;
-}
-
-.profile-picture,
-.profile-picture-placeholder {
-  width: 160px;
-  height: 160px;
-  border-radius: 50%;
-}
-
-.profile-picture {
-  object-fit: cover;
-  border: 4px solid rgba(139, 92, 246, 0.34);
-  box-shadow: 0 22px 40px rgba(139, 92, 246, 0.16);
-}
-
-.profile-picture-placeholder {
-  display: grid;
-  place-items: center;
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.92), rgba(236, 72, 153, 0.82));
-  color: white;
-  font-size: 3.5rem;
-  font-weight: 700;
-}
-
-.file-input-wrapper {
-  position: relative;
-}
-
-.file-input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
+  padding: clamp(20px, 5vw, 28px) clamp(20px, 5vw, 32px) clamp(24px, 6vw, 32px);
 }
 
 .user-info-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 14px;
+}
+
+.profile-picture,
+.profile-picture-placeholder {
+  width: clamp(120px, 25vw, 160px);
+  height: clamp(120px, 25vw, 160px);
+  border-radius: 50%;
+}
+
+@media (max-width: 640px) {
+  .settings-header {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .settings-header h2 {
+    flex: 1;
+  }
+
+  .feature-toggle-item {
+    padding: 14px;
+  }
+
+  .feature-toggle-item span {
+    max-width: 80%;
+  }
 }
 
 .info-item,
