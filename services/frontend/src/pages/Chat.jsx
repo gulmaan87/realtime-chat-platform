@@ -5,6 +5,7 @@ import {
   MessageCircle,
   Settings as SettingsIcon,
   Users,
+  RefreshCw,
 } from "lucide-react";
 import ContactList from "../components/ContactList";
 import ChatHeader from "../components/chat/ChatHeader";
@@ -12,17 +13,6 @@ import MessageTimeline from "../components/chat/MessageTimeline";
 import MessageComposer from "../components/chat/MessageComposer";
 import AssistantRail from "../components/chat/AssistantRail";
 import FriendshipPanel from "../components/chat/FriendshipPanel";
-
-  Send,
-  CheckCheck,
-  LogOut,
-  Settings,
-  Lock,
-  Sparkles,
-  Bot,
-  RefreshCw,
-} from "lucide-react";
-import ContactList from "../components/ContactList";
 import { createSocket } from "../services/socket";
 import { fetchChatHistory } from "../services/api";
 import { clearSession, getSession, getUserId } from "../services/session";
@@ -74,8 +64,6 @@ import "../App.css";
 const MOOD_THEME_TOGGLE_KEY = "feature:moodThemeEnabled";
 const TYPING_EMOTION_TOGGLE_KEY = "feature:typingEmotionEnabled";
 const REACTION_SOUND_TOGGLE_KEY = "feature:reactionSoundEnabled";
-
-const QUICK_REACTION_EMOJIS = ["👍", "❤️", "😂", "🔥", "😮"];
 
 function safeStorageGet(key, fallback = "true") {
   if (typeof window === "undefined") return fallback;
@@ -149,7 +137,6 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const [typingState, setTypingState] = useState(null);
   const [smartReplies, setSmartReplies] = useState([]);
   const [reactionPulseId, setReactionPulseId] = useState(null);
-  const [secretMode, setSecretMode] = useState(false);
   const [unlockedSecrets, setUnlockedSecrets] = useState({});
   const [secretViewed, setSecretViewed] = useState({});
   const [summaryState, setSummaryState] = useState({
@@ -283,12 +270,6 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     return () => clearTimeout(timer);
   }, [messages]);
 
-  useEffect(() => {
-    if (!typingMetricsRef.current.lastTimestamp) {
-      typingMetricsRef.current.lastTimestamp = Date.now();
-    }
-  }, []);
-
   const refreshSummary = useCallback(
     async (forceRefresh = false) => {
       if (!roomId || messages.length === 0) {
@@ -418,8 +399,6 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
       const label = !typingEmotionEnabled
         ? "typing..."
-
-        ? "typing…"
         : classifyTypingEmotion(payload.metadata || {}).label;
 
       setTypingState({ label, expiresAt: Date.now() + 2200 });
@@ -722,8 +701,6 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       }
     },
     [chatPartnerId, reactionSoundEnabled, unlockAchievementsForEvent, userId]
-
-    [chatPartnerId, reactionSoundEnabled, userId]
   );
 
   const unlockSecret = useCallback(
@@ -749,14 +726,6 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     (message) => {
       if (!message?.secret?.oneTime) return false;
       return Boolean(secretViewed[message.localId]);
-
-  const revealSecretBody = useCallback(
-    (message) => {
-      if (!message?.secret?.oneTime) return true;
-      if (secretViewed[message.localId]) return false;
-
-      setSecretViewed((prev) => ({ ...prev, [message.localId]: true }));
-      return true;
     },
     [secretViewed]
   );
@@ -1077,28 +1046,6 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       return (parts[0][0] + parts[1][0]).toUpperCase();
     }
     return (parts[0] || "?").slice(0, 2).toUpperCase();
-
-  };
-
-  const getAvatarColor = (name = "") => {
-    const colors = ["#0084ff", "#ff6b6b", "#4ecdc4", "#45b7d1", "#f9ca24", "#6c5ce7"];
-    return colors[name.charCodeAt(0) % colors.length] || colors[0];
-  };
-
-  const getMessageIntentChips = (messageData) => {
-    const intents = detectIntentActions(messageData?.message || "");
-    const hidden = dismissedIntentChips[messageData?.localId] || {};
-    return intents.filter((intent) => !hidden[intent.key]);
-  };
-
-  const dismissIntentChip = (messageId, intentKey) => {
-    setDismissedIntentChips((prev) => ({
-      ...prev,
-      [messageId]: {
-        ...(prev[messageId] || {}),
-        [intentKey]: true,
-      },
-    }));
   };
 
   const getAvatarColor = (name = "") => {
@@ -1284,18 +1231,6 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             </button>
             <button type="button" className="rail-button" aria-label="Files">
               <Folder size={18} />
-
-      <div className="chat-container">
-        <aside className="app-rail">
-          <div className="rail-top">
-            <button className="rail-button active" aria-label="Chats">
-              💬
-            </button>
-            <button className="rail-button" aria-label="Contacts">
-              👥
-            </button>
-            <button className="rail-button" aria-label="Files">
-              📁
             </button>
           </div>
 
@@ -1315,23 +1250,6 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
               aria-label="Logout"
             >
               <ArrowLeft size={18} />
-
-              className="rail-button"
-              onClick={() => (window.location.href = "/settings")}
-              aria-label="Settings"
-            >
-              ⚙️
-            </button>
-            <button
-              className="rail-button"
-              onClick={() => {
-                clearSession();
-                socketRef.current?.disconnect();
-                window.location.href = "/login";
-              }}
-              aria-label="Logout"
-            >
-              ↩
             </button>
           </div>
         </aside>
@@ -1474,466 +1392,29 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
         </div>
 
         <div className={`chat-details-shell ${isAssistantOpen ? "is-drawer-open" : ""}`}>
-        <AssistantRail
-          activeChatUser={activeChatUser}
-          getAvatarColor={getAvatarColor}
-          getInitials={getInitials}
-          moodThemeEnabled={moodThemeEnabled}
-          moodResult={moodResult}
-          summaryState={summaryState}
-          refreshSummary={refreshSummary}
-          toTime={toTime}
-          smartReplies={smartReplies}
-          friendshipInsight={friendshipInsight}
-          friendshipStatsMap={friendshipStats}
-          messages={messages}
-          savedTasks={partnerTasks}
-          achievements={achievements}
-          achievementDefinitions={ACHIEVEMENT_DEFINITIONS}
-          unlockedAchievementCount={unlockedAchievementCount}
-          onToggleTask={handleToggleAiTask}
-          onRemoveTask={handleRemoveAiTask}
-          onSelectSearchResult={handleSelectSearchResult}
-        />
-
-          <div className="chat-header">
-            <div className="header-left">
-              <div className="avatar-container">
-                <div
-                  className="avatar"
-                  style={{
-                    backgroundColor: getAvatarColor(
-                      activeChatUser?.username || activeChatUser?.email || "Chat"
-                    ),
-                  }}
-                >
-                  <span>
-                    {activeChatUser
-                      ? getInitials(activeChatUser.username || activeChatUser.email)
-                      : "?"}
-                  </span>
-                </div>
-                {activeChatUser && activeChatOnline && <div className="online-indicator" />}
-              </div>
-
-              <div className="header-info">
-                <h2>{activeChatUser?.username || activeChatUser?.email || "Select User"}</h2>
-
-                {/* ✅ KEEP XP BADGE */}
-                <XpBadge xpState={xpState} levelInfo={levelInfo} />
-
-                <p className="status-text">
-                  {!activeChatUser ? "Select a contact" : activeChatOnline ? "Online" : "Offline"}
-                </p>
-
-                {activeChatUser && typingState?.label ? (
-                  <p className="typing-emotion-indicator">{typingState.label}</p>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="header-actions">
-              <button
-                className="icon-button"
-                onClick={() => {
-                  clearSession();
-                  socketRef.current?.disconnect();
-                  window.location.href = "/login";
-                }}
-                title="Logout"
-              >
-                <LogOut size={20} />
-              </button>
-              <button
-                className="icon-button"
-                onClick={() => (window.location.href = "/settings")}
-                title="Settings"
-              >
-                <Settings size={20} />
-              </button>
-            </div>
-          </div>
-
-          {safetyWarning ? (
-            <div className={`safety-warning-banner ${safetyWarning.level}`}>
-              <div>
-                <strong>{safetyWarning.title}</strong>
-                <p>Be careful before sharing sensitive data or sending payments.</p>
-                <button
-                  className="safety-why-btn"
-                  onClick={() => setShowSafetyWhy((prev) => !prev)}
-                >
-                  {showSafetyWhy ? "Hide why" : "Why this warning?"}
-                </button>
-
-                {showSafetyWhy ? (
-                  <ul>
-                    {safetyWarning.reasons.map((reason) => (
-                      <li key={reason}>{reason}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-
-              <button className="safety-dismiss-btn" onClick={() => setSafetyWarning(null)}>
-                Dismiss
-              </button>
-            </div>
-          ) : null}
-
-          {/* ✅ KEEP FRIENDSHIP PANEL */}
-          {activeChatUser ? <FriendshipPanel friendshipInsight={friendshipInsight} /> : null}
-
-          <div className="messages-container">
-            <div className="messages-wrapper">
-              {!activeChatUser ? (
-                <div className="empty-state">
-                  <div className="empty-icon">👤</div>
-                  <h3>Select a user to chat</h3>
-                  <p>Choose a contact from the sidebar to start messaging</p>
-                </div>
-              ) : messages.length === 0 ? (
-                <div className="empty-state">
-                  <div className="empty-icon">💬</div>
-                  <h3>No messages yet</h3>
-                  <p>Start the conversation with {activeChatUser.username || activeChatUser.email}!</p>
-                </div>
-              ) : (
-                messages.map((messageData, i) => {
-                  const own = isOwnMessage(messageData);
-                  const grouped = shouldGroupMessages(messages, i);
-                  const showAvatar = !own && shouldShowAvatar(messages, i);
-                  const senderName = messageData.from || messageData.sender || "Anonymous";
-                  const assistant =
-                    messageData.type === "assistant" || senderName === "assistant";
-                  const isSecret = messageData.type === "secret";
-                  const canReveal = own || unlockedSecrets[messageData.localId];
-
-                  return (
-                    <div
-                      key={messageData.localId || i}
-                      className={`message-wrapper ${own ? "own" : "other"} ${
-                        grouped ? "grouped" : ""
-                      }`}
-                    >
-                      {showAvatar && !own ? (
-                        <div
-                          className="message-avatar"
-                          style={{ backgroundColor: getAvatarColor(senderName) }}
-                        >
-                          {assistant ? <Bot size={14} /> : getInitials(senderName)}
-                        </div>
-                      ) : null}
-
-                      {!showAvatar && !own ? <div className="avatar-spacer" /> : null}
-
-                      <div className="message-content">
-                        {!own && !grouped ? (
-                          <div className="message-sender">{senderName}</div>
-                        ) : null}
-
-                        <div
-                          className={`message-bubble ${own ? "sent" : "received"} ${
-                            assistant ? "assistant-bubble" : ""
-                          } ${reactionPulseId === messageData.localId ? "reaction-pulse" : ""}`}
-                        >
-                          {isSecret && !canReveal ? (
-                            <div className="secret-preview-card">
-                              <div className="secret-title">
-                                <Lock size={14} /> Secret message
-                              </div>
-                              <p>Hidden preview. Unlock required.</p>
-                              <button
-                                className="secret-unlock-btn"
-                                onClick={() => unlockSecret(messageData)}
-                              >
-                                Unlock
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="message-text">
-                              {messageData.type === "poll" && messageData.poll ? (
-                                <PollMessage
-                                  message={messageData}
-                                  currentUserId={userId}
-                                  onVote={votePoll}
-                                />
-                              ) : messageData.type === "mini_game" && messageData.miniGame ? (
-                                <MiniGameMessage
-                                  message={messageData}
-                                  currentUserId={userId}
-                                  onAttempt={submitMiniGameAttempt}
-                                />
-                              ) : isSecret ? (
-                                revealSecretBody(messageData) ? (
-                                  messageData.message
-                                ) : (
-                                  "Secret viewed once"
-                                )
-                              ) : (
-                                messageData.message
-                              )}
-                            </div>
-                          )}
-
-                          <div className="message-footer">
-                            <span className="message-time">{toTime(messageData.timestamp)}</span>
-                            {own ? (
-                              <span className="message-status">
-                                <CheckCheck size={14} />
-                              </span>
-                            ) : null}
-                          </div>
-
-                          {!assistant ? (
-                            <>
-                              <div className="message-reactions">
-                                {QUICK_REACTION_EMOJIS.map((emoji) => {
-                                  const count = Array.isArray(messageData.reactions?.[emoji])
-                                    ? messageData.reactions[emoji].length
-                                    : 0;
-                                  const mine =
-                                    Array.isArray(messageData.reactions?.[emoji]) &&
-                                    messageData.reactions[emoji].includes(String(userId));
-
-                                  return (
-                                    <button
-                                      key={emoji}
-                                      className={`reaction-chip ${mine ? "mine" : ""}`}
-                                      onClick={() => applyReaction(messageData, emoji)}
-                                    >
-                                      <span>{emoji}</span>
-                                      {count > 0 ? <small>{count}</small> : null}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-
-                              {getMessageIntentChips(messageData).length > 0 ? (
-                                <div className="intent-action-chips">
-                                  {getMessageIntentChips(messageData).map((intent) => (
-                                    <button
-                                      key={intent.key}
-                                      className="intent-chip"
-                                      onClick={() =>
-                                        dismissIntentChip(messageData.localId, intent.key)
-                                      }
-                                    >
-                                      {intent.label} ✕
-                                    </button>
-                                  ))}
-                                </div>
-                              ) : null}
-                            </>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-
-              <div ref={messagesEndRef} />
-            </div>
-          </div>
-
-          <div className="input-container">
-            <div className="input-wrapper">
-              {activeChatUser && !text.trim() && smartReplies.length > 0 ? (
-                <div className="smart-reply-row">
-                  <div className="smart-reply-title">
-                    <Sparkles size={14} /> Quick replies
-                  </div>
-                  <div className="smart-reply-cards">
-                    {smartReplies.slice(0, 5).map((reply) => (
-                      <button
-                        key={reply}
-                        className="smart-reply-card"
-                        onClick={() => setText(reply)}
-                      >
-                        {reply}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {text.trim() && !text.trim().startsWith("/") ? (
-                <div className="tone-preview-panel">
-                  <div className="tone-preview-header">
-                    <span>Auto tone converter</span>
-                    <select value={toneMode} onChange={(e) => setToneMode(e.target.value)}>
-                      <option value="professional">Professional</option>
-                      <option value="friendly">Friendly</option>
-                      <option value="concise">Concise</option>
-                    </select>
-                  </div>
-
-                  <div className="tone-preview-grid">
-                    <div>
-                      <small>Original draft</small>
-                      <p>{text}</p>
-                    </div>
-                    <div>
-                      <small>Converted preview</small>
-                      <p>{outgoingTonePreview.rewritten}</p>
-                    </div>
-                  </div>
-
-                  <div className="tone-preview-actions">
-                    <button onClick={() => setText(outgoingTonePreview.rewritten || text)}>
-                      Use converted
-                    </button>
-                    <span>{outgoingTonePreview.reason}</span>
-                  </div>
-                </div>
-              ) : null}
-
-              {commandSuggestions.length > 0 ? (
-                <div className="command-menu">
-                  {commandSuggestions.map((cmd, index) => (
-                    <button
-                      key={cmd.name}
-                      className={`command-item ${index === activeCommandIndex ? "active" : ""}`}
-                      onClick={() => {
-                        setText(`${cmd.name} `);
-                        setCommandSuggestions([]);
-                        inputRef.current?.focus();
-                      }}
-                    >
-                      <span>{cmd.name}</span>
-                      <small>{cmd.description}</small>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-
-              {/* ✅ KEEP GAMIFICATION COMPOSER */}
-              <InteractiveComposer
-                onSendPoll={submitPoll}
-                onSendMiniGame={sendMiniGame}
-                disabled={!activeChatUser || !isConnected}
-              />
-
-              <div className="message-input-wrapper">
-                <button
-                  className={`secret-mode-toggle ${secretMode ? "active" : ""}`}
-                  onClick={() => setSecretMode((prev) => !prev)}
-                  title="Secret mode"
-                >
-                  <Lock size={16} />
-                </button>
-
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={text}
-                  onChange={(e) => {
-                    setText(e.target.value);
-                    handleTypingInput(e.target.value);
-                  }}
-                  onKeyDown={(e) => {
-                    if (
-                      commandSuggestions.length > 0 &&
-                      (e.key === "ArrowDown" || e.key === "ArrowUp")
-                    ) {
-                      e.preventDefault();
-                      setActiveCommandIndex((prev) => {
-                        if (e.key === "ArrowDown") {
-                          return (prev + 1) % commandSuggestions.length;
-                        }
-                        return prev === 0 ? commandSuggestions.length - 1 : prev - 1;
-                      });
-                      return;
-                    }
-
-                    if (commandSuggestions.length > 0 && e.key === "Tab") {
-                      e.preventDefault();
-                      const selected = commandSuggestions[activeCommandIndex];
-                      if (selected) {
-                        setText(`${selected.name} `);
-                        setCommandSuggestions([]);
-                      }
-                      return;
-                    }
-
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessage();
-                    }
-                  }}
-                  placeholder={
-                    !activeChatUser
-                      ? "Select a user to chat"
-                      : isConnected
-                      ? secretMode
-                        ? "Send secret message"
-                        : "Type a message or /command"
-                      : "Connecting..."
-                  }
-                  disabled={!isConnected || !activeChatUser}
-                  className="message-input"
-                />
-
-                <button
-                  onClick={sendMessage}
-                  disabled={!text.trim() || !isConnected || !activeChatUser}
-                  className="send-button"
-                >
-                  <Send size={20} />
-                </button>
-              </div>
-            </div>
-          </div>
+          <AssistantRail
+            activeChatUser={activeChatUser}
+            getAvatarColor={getAvatarColor}
+            getInitials={getInitials}
+            moodThemeEnabled={moodThemeEnabled}
+            moodResult={moodResult}
+            summaryState={summaryState}
+            refreshSummary={refreshSummary}
+            toTime={toTime}
+            smartReplies={smartReplies}
+            friendshipInsight={friendshipInsight}
+            friendshipStatsMap={friendshipStats}
+            messages={messages}
+            savedTasks={partnerTasks}
+            achievements={achievements}
+            achievementDefinitions={ACHIEVEMENT_DEFINITIONS}
+            unlockedAchievementCount={unlockedAchievementCount}
+            onToggleTask={handleToggleAiTask}
+            onRemoveTask={handleRemoveAiTask}
+            onSelectSearchResult={handleSelectSearchResult}
+          />
         </div>
-
-        <aside className="chat-details">
-          <div className="details-user-card">
-            <div
-              className="details-avatar"
-              style={{
-                backgroundColor: getAvatarColor(
-                  activeChatUser?.username || activeChatUser?.email || "User"
-                ),
-              }}
-            >
-              {getInitials(activeChatUser?.username || activeChatUser?.email || "U")}
-            </div>
-
-            <h3>{activeChatUser?.username || "No chat selected"}</h3>
-            <p>{activeChatUser?.email || "Select a contact to view details"}</p>
-
-            {moodThemeEnabled ? (
-              <p className="chat-mood-chip">
-                Mood: {moodResult.mood} · {Math.round(moodResult.confidence * 100)}%
-              </p>
-            ) : null}
-          </div>
-
-          <div className="details-section summary-panel">
-            <div className="summary-header-row">
-              <div className="details-section-header">Conversation Summary</div>
-              <button
-                className="summary-refresh"
-                onClick={() => refreshSummary(true)}
-                disabled={summaryState.loading}
-              >
-                <RefreshCw size={14} className={summaryState.loading ? "spinning" : ""} />
-                Refresh
-              </button>
-            </div>
-
-            <p className="summary-text">{summaryState.summary}</p>
-            <p className="summary-meta">
-              Source: {summaryState.source}
-              {summaryState.updatedAt ? ` · ${toTime(summaryState.updatedAt)}` : ""}
-            </p>
-          </div>
-
-          <button className="details-cta">View All</button>
-        </aside>
       </div>
-    </div>
     </div>
   );
 }
