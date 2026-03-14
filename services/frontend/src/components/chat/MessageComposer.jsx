@@ -60,15 +60,13 @@ export default function MessageComposer({
 
         {activeChatUser && !text.trim() && smartReplies.length > 0 ? (
           <div className="smart-reply-row">
-            <div className="smart-reply-title">
-              <Sparkles size={14} /> Quick replies
-            </div>
-            <div className="smart-reply-cards">
-              {smartReplies.slice(0, 5).map((reply) => (
+            <div className="smart-reply-cards" style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              {smartReplies.slice(0, 3).map((reply) => (
                 <button
                   key={reply}
                   className="smart-reply-card"
                   onClick={() => setText(reply)}
+                  style={{ fontSize: "12px", padding: "4px 10px" }}
                 >
                   {reply}
                 </button>
@@ -143,7 +141,7 @@ export default function MessageComposer({
           />
           <button
             type="button"
-            className="voice-note-trigger utility-trigger"
+            className="voice-note-trigger"
             disabled={!activeChatUser}
             onClick={() => setIsWhiteboardOpen(true)}
             title="Whiteboard"
@@ -151,15 +149,15 @@ export default function MessageComposer({
           >
             <PenSquare size={16} />
           </button>
-          <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "auto" }}>
+          
+          <div className="composer-scheduling" title="Schedule message">
+            <Clock size={14} style={{ opacity: 0.6 }} />
             <input 
               type="datetime-local" 
               value={scheduledFor || ""} 
               onChange={(e) => setScheduledFor(e.target.value)} 
-              style={{ fontSize: "12px", padding: "4px", borderRadius: "4px", border: "1px solid #ccc", background: "var(--input-bg)" }}
-              title="Schedule message"
             />
-            <Clock size={16} style={{ opacity: 0.6 }} />
+            {scheduledFor && <button onClick={() => setScheduledFor("")} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", padding: "0 4px" }}><X size={12} /></button>}
           </div>
         </div>
 
