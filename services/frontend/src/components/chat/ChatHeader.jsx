@@ -12,23 +12,15 @@ export default function ChatHeader({
   onToggleFriendship,
   onOpenSidebar,
   onOpenAssistant,
+  isSidebarOpen,
+  isAssistantOpen,
 }) {
   return (
     <div className="chat-header">
-      <div className="header-left">
-        <button
-          className="icon-button sidebar-toggle-btn"
-          onClick={onOpenSidebar}
-          title="Toggle conversations"
-          aria-label="Toggle conversations"
-          type="button"
-        >
-          <Menu size={20} />
-        </button>
-
-        <div className="avatar-container" onClick={onToggleFriendship} style={{ cursor: "pointer" }}>
+      <div className="header-left" onClick={onToggleFriendship}>
+        <div className="avatar-container">
           <div
-            className="avatar"
+            className="avatar header-avatar"
             style={{
               backgroundColor: getAvatarColor(
                 activeChatUser?.username || activeChatUser?.email || "Chat"
@@ -44,12 +36,14 @@ export default function ChatHeader({
           {activeChatUser && activeChatOnline ? <div className="online-indicator" /> : null}
         </div>
 
-        <div className="header-info" onClick={onToggleFriendship} style={{ cursor: "pointer" }}>
+        <div className="header-info">
           <h2>{activeChatUser?.username || activeChatUser?.email || "Select User"}</h2>
-          <XpBadge xpState={xpState} levelInfo={levelInfo} />
-          <p className="status-text">
-            {!activeChatUser ? "Select a contact" : activeChatOnline ? "Online" : "Offline"}
-          </p>
+          {activeChatUser && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span className="status-text">{activeChatOnline ? "Online" : "Offline"}</span>
+              <XpBadge xpState={xpState} levelInfo={levelInfo} />
+            </div>
+          )}
           {activeChatUser && typingState?.label ? (
             <p className="typing-emotion-indicator">{typingState.label}</p>
           ) : null}
@@ -58,11 +52,16 @@ export default function ChatHeader({
 
       <div className="header-actions">
         <button
-          className="icon-button assistant-toggle-btn"
-          onClick={onOpenAssistant}
+          className={`rail-button ${isSidebarOpen ? "active" : ""}`}
+          onClick={(e) => { e.stopPropagation(); onOpenSidebar(); }}
+          title="Toggle conversations"
+        >
+          <Menu size={20} />
+        </button>
+        <button
+          className={`rail-button ${isAssistantOpen ? "active" : ""}`}
+          onClick={(e) => { e.stopPropagation(); onOpenAssistant(); }}
           title="Toggle assistant"
-          aria-label="Toggle assistant"
-          type="button"
         >
           <PanelRight size={20} />
         </button>

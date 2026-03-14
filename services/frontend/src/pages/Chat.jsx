@@ -1395,14 +1395,10 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             getAvatarColor={getAvatarColor}
             getInitials={getInitials}
             onToggleFriendship={() => setShowFriendshipPanel(!showFriendshipPanel)}
-            onOpenSidebar={() => {
-              setIsAssistantOpen(false);
-              setIsSidebarOpen(true);
-            }}
-            onOpenAssistant={() => {
-              setIsSidebarOpen(false);
-              setIsAssistantOpen(true);
-            }}
+            onOpenSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+            onOpenAssistant={() => setIsAssistantOpen(!isAssistantOpen)}
+            isSidebarOpen={isSidebarOpen}
+            isAssistantOpen={isAssistantOpen}
           />
 
           {safetyWarning ? (
@@ -1433,10 +1429,12 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
           ) : null}
 
           {activeChatUser && showFriendshipPanel ? (
-            <FriendshipPanel
-              friendshipInsight={friendshipInsight}
-              contactName={activeChatUser?.username || activeChatUser?.email || "this contact"}
-            />
+            <div className="friendship-overlay">
+              <FriendshipPanel
+                friendshipInsight={friendshipInsight}
+                contactName={activeChatUser?.username || activeChatUser?.email || "this contact"}
+              />
+            </div>
           ) : null}
 
           <MessageTimeline
