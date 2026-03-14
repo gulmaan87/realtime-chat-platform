@@ -152,8 +152,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const [dismissedIntentChips, setDismissedIntentChips] = useState({});
   const [safetyWarning, setSafetyWarning] = useState(null);
   const [showSafetyWhy, setShowSafetyWhy] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(true);
+  const [showFriendshipPanel, setShowFriendshipPanel] = useState(false);
   const [isWhiteboardOpen, setIsWhiteboardOpen] = useState(false);
   const [remoteWhiteboardStrokes, setRemoteWhiteboardStrokes] = useState([]);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
@@ -1319,17 +1320,24 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
         <div className="achievement-toast">{achievementToast}</div>
       ) : null}
 
-      <div className="chat-container">
+      <div className={`chat-container ${isSidebarOpen ? "sidebar-open" : ""} ${isAssistantOpen ? "assistant-open" : ""}`}>
         <aside className="app-rail">
           <div className="rail-top">
-            <button type="button" className="rail-button active" aria-label="Chats">
-              <MessageCircle size={18} />
-            </button>
-            <button type="button" className="rail-button" aria-label="Contacts">
+            <button 
+              type="button" 
+              className={`rail-button ${isSidebarOpen ? "active" : ""}`} 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              aria-label="Toggle Conversations"
+            >
               <Users size={18} />
             </button>
-            <button type="button" className="rail-button" aria-label="Files">
-              <Folder size={18} />
+            <button 
+              type="button" 
+              className={`rail-button ${isAssistantOpen ? "active" : ""}`} 
+              onClick={() => setIsAssistantOpen(!isAssistantOpen)}
+              aria-label="Toggle Assistant"
+            >
+              <RefreshCw size={18} />
             </button>
           </div>
 
@@ -1357,7 +1365,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
           type="button"
           className={`drawer-overlay ${isSidebarOpen ? "is-visible" : ""}`}
           aria-label="Close conversations"
-          onClick={closeDrawers}
+          onClick={() => setIsSidebarOpen(false)}
         />
         <button
           type="button"
@@ -1365,7 +1373,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             isAssistantOpen ? "is-visible" : ""
           }`}
           aria-label="Close assistant"
-          onClick={closeDrawers}
+          onClick={() => setIsAssistantOpen(false)}
         />
 
         <div className={`contact-list-sidebar ${isSidebarOpen ? "is-drawer-open" : ""}`}>
@@ -1386,8 +1394,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             levelInfo={levelInfo}
             getAvatarColor={getAvatarColor}
             getInitials={getInitials}
-            onLogout={handleLogout}
-            onSettings={handleSettings}
+            onToggleFriendship={() => setShowFriendshipPanel(!showFriendshipPanel)}
             onOpenSidebar={() => {
               setIsAssistantOpen(false);
               setIsSidebarOpen(true);
@@ -1425,7 +1432,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             </div>
           ) : null}
 
-          {activeChatUser ? (
+          {activeChatUser && showFriendshipPanel ? (
             <FriendshipPanel
               friendshipInsight={friendshipInsight}
               contactName={activeChatUser?.username || activeChatUser?.email || "this contact"}

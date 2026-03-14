@@ -1,4 +1,4 @@
-import { LogOut, Menu, PanelRight, Settings } from "lucide-react";
+import { Menu, PanelRight } from "lucide-react";
 import XpBadge from "./XpBadge";
 
 export default function ChatHeader({
@@ -9,27 +9,24 @@ export default function ChatHeader({
   levelInfo,
   getAvatarColor,
   getInitials,
-  onLogout,
-  onSettings,
+  onToggleFriendship,
   onOpenSidebar,
   onOpenAssistant,
 }) {
   return (
     <div className="chat-header">
-      <div className="chat-header__mobile-actions">
+      <div className="header-left">
         <button
-          className="icon-button chat-mobile-trigger"
+          className="icon-button sidebar-toggle-btn"
           onClick={onOpenSidebar}
-          title="Open conversations"
-          aria-label="Open conversations"
+          title="Toggle conversations"
+          aria-label="Toggle conversations"
           type="button"
         >
           <Menu size={20} />
         </button>
-      </div>
 
-      <div className="header-left">
-        <div className="avatar-container">
+        <div className="avatar-container" onClick={onToggleFriendship} style={{ cursor: "pointer" }}>
           <div
             className="avatar"
             style={{
@@ -47,7 +44,7 @@ export default function ChatHeader({
           {activeChatUser && activeChatOnline ? <div className="online-indicator" /> : null}
         </div>
 
-        <div className="header-info">
+        <div className="header-info" onClick={onToggleFriendship} style={{ cursor: "pointer" }}>
           <h2>{activeChatUser?.username || activeChatUser?.email || "Select User"}</h2>
           <XpBadge xpState={xpState} levelInfo={levelInfo} />
           <p className="status-text">
@@ -61,19 +58,13 @@ export default function ChatHeader({
 
       <div className="header-actions">
         <button
-          className="icon-button chat-mobile-trigger"
+          className="icon-button assistant-toggle-btn"
           onClick={onOpenAssistant}
-          title="Open assistant"
-          aria-label="Open assistant"
+          title="Toggle assistant"
+          aria-label="Toggle assistant"
           type="button"
         >
           <PanelRight size={20} />
-        </button>
-        <button className="icon-button" onClick={onLogout} title="Logout">
-          <LogOut size={20} />
-        </button>
-        <button className="icon-button" onClick={onSettings} title="Settings">
-          <Settings size={20} />
         </button>
       </div>
     </div>
