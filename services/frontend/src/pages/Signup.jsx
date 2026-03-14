@@ -106,7 +106,6 @@ export default function Signup() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="auth-input"
-              required
             />
           </div>
 
@@ -118,7 +117,6 @@ export default function Signup() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="auth-input"
-              required
             />
           </div>
 
@@ -130,7 +128,6 @@ export default function Signup() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="auth-input"
-              required
               minLength={6}
             />
           </div>

@@ -179,6 +179,21 @@ module.exports = (io) => {
       });
     });
 
+    socket.on("whiteboard_sync", async (payload = {}) => {
+      const fromUserId = socket.userId;
+      const targetUserId = payload.toUserId ? String(payload.toUserId) : "";
+      if (!fromUserId || !targetUserId) return;
+
+      const targetSocketId = await redis.get(`user:${targetUserId}`);
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit("whiteboard_sync", {
+        ...payload,
+        fromUserId: String(fromUserId),
+        timestamp: Date.now(),
+      });
+    });
+
     socket.on("send_message", async (data) => {
       await publishMessage({
         sender: data.sender || socket.id,
