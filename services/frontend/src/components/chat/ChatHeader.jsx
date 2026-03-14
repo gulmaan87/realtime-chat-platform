@@ -1,70 +1,32 @@
-import { Menu, PanelRight } from "lucide-react";
-import XpBadge from "./XpBadge";
+import { UserPlus, Phone, Video, Info } from "lucide-react";
 
 export default function ChatHeader({
   activeChatUser,
   activeChatOnline,
-  typingState,
-  xpState,
-  levelInfo,
   getAvatarColor,
   getInitials,
-  onToggleFriendship,
-  onOpenSidebar,
-  onOpenAssistant,
-  isSidebarOpen,
-  isAssistantOpen,
 }) {
+  if (!activeChatUser) return <div className="chat-header">Select a conversation</div>;
+
   return (
     <div className="chat-header">
-      <div className="header-left" onClick={onToggleFriendship}>
-        <div className="avatar-container">
-          <div
-            className="avatar header-avatar"
-            style={{
-              backgroundColor: getAvatarColor(
-                activeChatUser?.username || activeChatUser?.email || "Chat"
-              ),
-            }}
-          >
-            <span>
-              {activeChatUser
-                ? getInitials(activeChatUser.username || activeChatUser.email)
-                : "?"}
-            </span>
-          </div>
-          {activeChatUser && activeChatOnline ? <div className="online-indicator" /> : null}
+      <div className="header-left">
+        <div className="avatar" style={{ backgroundColor: getAvatarColor(activeChatUser.username), width: "40px", height: "40px" }}>
+          {getInitials(activeChatUser.username)}
         </div>
-
         <div className="header-info">
-          <h2>{activeChatUser?.username || activeChatUser?.email || "Select User"}</h2>
-          {activeChatUser && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span className="status-text">{activeChatOnline ? "Online" : "Offline"}</span>
-              <XpBadge xpState={xpState} levelInfo={levelInfo} />
-            </div>
-          )}
-          {activeChatUser && typingState?.label ? (
-            <p className="typing-emotion-indicator">{typingState.label}</p>
-          ) : null}
+          <h2>{activeChatUser.username}</h2>
+          <span style={{ color: activeChatOnline ? "var(--accent-success)" : "var(--text-muted)", fontSize: "0.8rem" }}>
+            {activeChatOnline ? "Online" : "Offline"}
+          </span>
         </div>
       </div>
 
       <div className="header-actions">
-        <button
-          className={`rail-button ${isSidebarOpen ? "active" : ""}`}
-          onClick={(e) => { e.stopPropagation(); onOpenSidebar(); }}
-          title="Toggle conversations"
-        >
-          <Menu size={20} />
-        </button>
-        <button
-          className={`rail-button ${isAssistantOpen ? "active" : ""}`}
-          onClick={(e) => { e.stopPropagation(); onOpenAssistant(); }}
-          title="Toggle assistant"
-        >
-          <PanelRight size={20} />
-        </button>
+        <button><UserPlus size={20} /></button>
+        <button><Phone size={20} /></button>
+        <button><Video size={20} /></button>
+        <button><Info size={20} /></button>
       </div>
     </div>
   );
