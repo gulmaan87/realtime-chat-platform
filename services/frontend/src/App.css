@@ -449,6 +449,7 @@ body {
 .chat-main {
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-height: 0;
   overflow: hidden;
   background:
@@ -547,6 +548,7 @@ body {
 
 .safety-warning-banner,
 .friendship-meter {
+  flex: 0 0 auto;
   margin: 14px 20px 0;
 }
 
