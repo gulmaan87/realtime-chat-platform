@@ -1,0 +1,97 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e4]:
+  - complementary [ref=e5]:
+    - generic [ref=e6]:
+      - button "Chats" [ref=e7] [cursor=pointer]:
+        - img [ref=e8]
+      - button "Contacts" [ref=e10] [cursor=pointer]:
+        - img [ref=e11]
+      - button "Files" [ref=e16] [cursor=pointer]:
+        - img [ref=e17]
+    - generic [ref=e19]:
+      - button "Settings" [ref=e20] [cursor=pointer]:
+        - img [ref=e21]
+      - button "Logout" [ref=e24] [cursor=pointer]:
+        - img [ref=e25]
+  - button "Close conversations" [ref=e27]
+  - button "Close assistant" [ref=e28]
+  - generic [ref=e30]:
+    - generic [ref=e31]:
+      - heading "Contacts" [level=3] [ref=e32]
+      - button "Add friend" [ref=e33] [cursor=pointer]:
+        - img [ref=e34]
+        - generic [ref=e37]: Add friend
+    - generic [ref=e38]:
+      - generic [ref=e39]:
+        - heading "Add friend" [level=4] [ref=e40]
+        - button "Close" [ref=e41]: ×
+      - generic [ref=e42]:
+        - textbox "Enter username or email" [active] [ref=e43]
+        - button "Add" [ref=e44] [cursor=pointer]
+    - button "FR friend Offline" [ref=e46] [cursor=pointer]:
+      - generic [ref=e47]: FR
+      - generic [ref=e48]:
+        - generic [ref=e49]: friend
+        - generic [ref=e50]: Offline
+  - generic [ref=e51]:
+    - generic [ref=e52]:
+      - generic [ref=e53]:
+        - generic [ref=e56]: "?"
+        - generic [ref=e57]:
+          - heading "Select User" [level=2] [ref=e58]
+          - paragraph [ref=e59]:
+            - img [ref=e60]
+            - generic [ref=e62]: Lvl 1
+            - generic [ref=e63]: XP 0
+          - paragraph [ref=e64]: Select a contact
+      - generic [ref=e65]:
+        - button "Logout" [ref=e66] [cursor=pointer]:
+          - img [ref=e67]
+        - button "Settings" [ref=e70] [cursor=pointer]:
+          - img [ref=e71]
+    - generic [ref=e76]:
+      - img [ref=e78]
+      - heading "Select a user to chat" [level=3] [ref=e81]
+      - paragraph [ref=e82]: Choose a contact from the sidebar to start messaging
+    - generic [ref=e84]:
+      - generic [ref=e85]:
+        - button "Interactive tools" [disabled] [ref=e87] [cursor=pointer]:
+          - img [ref=e88]
+        - button "Voice note" [disabled] [ref=e91]:
+          - img [ref=e92]
+        - button "Whiteboard" [disabled] [ref=e95]:
+          - img [ref=e96]
+      - generic [ref=e99]:
+        - button "Secret mode" [ref=e100] [cursor=pointer]:
+          - img [ref=e101]
+        - textbox "Select a user to chat" [disabled] [ref=e104]
+        - button [disabled] [ref=e105] [cursor=pointer]:
+          - img [ref=e106]
+  - complementary [ref=e110]:
+    - generic [ref=e111]:
+      - generic [ref=e112]:
+        - generic [ref=e113]: U
+        - generic [ref=e114]:
+          - generic [ref=e115]:
+            - img [ref=e116]
+            - generic [ref=e118]: Assistant rail
+          - heading "No chat selected" [level=3] [ref=e119]
+          - paragraph [ref=e120]: Select a contact to view details
+      - paragraph [ref=e121]: "Mood: neutral / 50%"
+    - tablist "Assistant sections" [ref=e122]:
+      - tab "Summary" [selected] [ref=e123] [cursor=pointer]
+      - tab "Actions" [ref=e124] [cursor=pointer]
+      - tab "Insights" [ref=e125] [cursor=pointer]
+    - generic [ref=e128]:
+      - generic [ref=e129]:
+        - generic [ref=e130]:
+          - paragraph [ref=e131]: Unread summary
+          - generic [ref=e132]: Conversation Summary
+        - button "Refresh" [ref=e133] [cursor=pointer]:
+          - img [ref=e134]
+          - text: Refresh
+      - paragraph [ref=e139]: No summary yet.
+      - paragraph [ref=e140]: "Source: none"
+```
