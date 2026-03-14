@@ -1,97 +1,84 @@
-import { useMemo, useState } from "react";
-import { RefreshCw, Search, Sparkles, Stars, Phone, Mail, Calendar, User, Image as ImageIcon } from "lucide-react";
+import { useState } from "react";
+import { Sparkles, Target, Zap, ChevronRight } from "lucide-react";
 
-export default function AssistantRail({
-  activeChatUser,
-  summaryState,
-  refreshSummary,
-  savedTasks = [],
-  achievements = {},
-  friendshipStatsMap = {},
-  messages = []
-}) {
-  const [activeTab, setActiveTab] = useState("summary");
+export default function AssistantRail({ activeChatUser, seededData }) {
+  const [activeTab, setActiveTab] = useState("Summary");
 
-  if (!activeChatUser) return <div className="chat-details-shell">Select a contact to view details</div>;
+  if (!activeChatUser) return null;
 
   return (
     <div className="chat-details-shell">
-      <div className="assistant-tabs" style={{ display: "flex", gap: "10px", padding: "20px 24px", borderBottom: "1px solid #eee" }}>
-        {["summary", "actions", "insights"].map(tab => (
+      <div className="assistant-identity">
+        <div className="assistant-avatar">
+          🤖
+        </div>
+        <h3>LevelUp Copilot</h3>
+        <p>Analyzing conversation with {activeChatUser.username}</p>
+      </div>
+
+      <div className="assistant-tabs">
+        {["Summary", "Actions", "Insights"].map(tab => (
           <button
             key={tab}
-            className={`assistant-tab ${activeTab === tab ? "active" : ""}`}
+            className={`ast-tab ${activeTab === tab ? "active" : ""}`}
             onClick={() => setActiveTab(tab)}
-            style={{ 
-              flex: 1, padding: "8px", borderRadius: "8px", border: "1px solid #ddd", 
-              background: activeTab === tab ? "var(--accent-primary)" : "white",
-              color: activeTab === tab ? "white" : "#666",
-              textTransform: "capitalize", fontWeight: 600, cursor: "pointer"
-            }}
           >
             {tab}
           </button>
         ))}
       </div>
 
-      <div className="assistant-content" style={{ padding: "24px" }}>
-        {activeTab === "summary" && (
-          <div className="summary-panel">
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px" }}>
-              <h4 style={{ fontSize: "0.9rem", fontWeight: 700 }}>AI Summary</h4>
-              <button onClick={() => refreshSummary(true)} disabled={summaryState.loading}>
-                <RefreshCw size={16} className={summaryState.loading ? "spinning" : ""} />
-              </button>
+      <div className="assistant-content">
+        {activeTab === "Summary" && (
+          <div className="insight-card">
+            <div className="insight-header">
+              <Sparkles size={16} /> Conversation Summary
             </div>
-            <p style={{ fontSize: "0.9rem", color: "#666", lineHeight: 1.6 }}>{summaryState.summary}</p>
-          </div>
-        )}
-
-        {activeTab === "actions" && (
-          <div className="actions-panel">
-            <h4 style={{ fontSize: "0.9rem", fontWeight: 700, marginBottom: "16px" }}>Task List</h4>
-            {savedTasks.length === 0 ? <p style={{ fontSize: "0.85rem", color: "#999" }}>No pending tasks</p> : (
-              <div className="task-list" style={{ display: "grid", gap: "10px" }}>
-                {savedTasks.map(task => (
-                  <div key={task.id} style={{ padding: "10px", borderRadius: "10px", background: "#f9f9f9", border: "1px solid #eee", fontSize: "0.85rem" }}>
-                    {task.text}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "insights" && (
-          <div className="insights-panel">
-            <h4 style={{ fontSize: "0.9rem", fontWeight: 700, marginBottom: "16px" }}>Achievements</h4>
-            <div className="achievement-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px" }}>
-              {Object.keys(achievements).map(key => (
-                <div key={key} style={{ padding: "10px", borderRadius: "10px", background: "#f0f7ff", border: "1px solid #cce5ff", textAlign: "center" }}>
-                  <Stars size={20} color="#007bff" style={{ marginBottom: "4px" }} />
-                  <div style={{ fontSize: "0.75rem", fontWeight: 600 }}>{key}</div>
-                </div>
-              ))}
+            <div className="insight-body">
+              {seededData?.summary || "No recent summary available."}
             </div>
           </div>
         )}
-      </div>
 
-      <div className="profile-section" style={{ marginTop: "auto", borderTop: "1px solid #eee", padding: "24px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
-          <img
-            src={`https://ui-avatars.com/api/?name=${activeChatUser.username}&size=48&background=random`}
-            alt="Avatar"
-            style={{ width: "48px", height: "48px", borderRadius: "50%" }}
-          />
+        {activeTab === "Actions" && (
           <div>
-            <h3 style={{ fontSize: "1rem", fontWeight: 700 }}>{activeChatUser.username}</h3>
-            <p style={{ fontSize: "0.8rem", color: "#999" }}>{activeChatUser.email}</p>
+            <div className="insight-header" style={{ marginBottom: "16px" }}>
+              <Target size={16} /> Suggested Next Steps
+            </div>
+            {seededData?.tasks?.map(task => (
+              <div key={task.id} className="task-item">
+                <input type="checkbox" />
+                <span className="task-text">{task.text}</span>
+              </div>
+            ))}
+            <button className="new-chat-btn" style={{ width: "100%", height: "auto", padding: "12px", marginTop: "12px", borderRadius: "12px", background: "var(--glass-surface)", display: "flex", justifyContent: "space-between" }}>
+              <span>Generate more ideas</span>
+              <ChevronRight size={16} />
+            </button>
           </div>
-        </div>
-        <button className="edit-profile-btn" style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd", background: "white", fontWeight: 600, cursor: "pointer" }}>
-          View Profile
-        </button>
+        )}
+
+        {activeTab === "Insights" && (
+          <div className="insight-card">
+            <div className="insight-header">
+              <Zap size={16} /> Interaction Stats
+            </div>
+            <div className="insight-body" style={{ display: "grid", gap: "12px" }}>
+              <div>
+                <strong style={{ color: "var(--text-primary)" }}>Current Mood</strong>
+                <p>{seededData?.insights?.mood || "Neutral"}</p>
+              </div>
+              <div>
+                <strong style={{ color: "var(--text-primary)" }}>Relationship Health</strong>
+                <p>{seededData?.insights?.health || "Good"}</p>
+              </div>
+              <div>
+                <strong style={{ color: "var(--text-primary)" }}>Smart Advice</strong>
+                <p>{seededData?.insights?.nextAction || "Keep chatting to build connection."}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
