@@ -1,4 +1,4 @@
-import { Lock, PenSquare, Send, Sparkles } from "lucide-react";
+import { Clock, Lock, PenSquare, Send, Sparkles, X } from "lucide-react";
 import InteractiveComposer from "./InteractiveComposer";
 import VoiceNoteComposer from "./VoiceNoteComposer";
 import WhiteboardComposer from "./WhiteboardComposer";
@@ -29,10 +29,35 @@ export default function MessageComposer({
   handleTypingInput,
   setActiveCommandIndex,
   sendMessage,
+  replyingTo,
+  cancelReply,
+  editingMessage,
+  cancelEdit,
+  scheduledFor,
+  setScheduledFor,
 }) {
   return (
     <div className="input-container">
       <div className="input-wrapper">
+        {replyingTo && (
+          <div className="composer-reply-preview" style={{ padding: "8px", background: "rgba(0,0,0,0.05)", borderRadius: "4px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <small>Replying to <strong>{replyingTo.from || "User"}</strong></small>
+              <p style={{ margin: 0, fontSize: "13px", opacity: 0.8 }}>{replyingTo.message?.substring(0, 50)}</p>
+            </div>
+            <button onClick={cancelReply} style={{ background: "none", border: "none", cursor: "pointer" }}><X size={14} /></button>
+          </div>
+        )}
+        {editingMessage && (
+          <div className="composer-edit-preview" style={{ padding: "8px", background: "rgba(0,0,0,0.05)", borderRadius: "4px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <small>Editing message</small>
+              <p style={{ margin: 0, fontSize: "13px", opacity: 0.8 }}>{editingMessage.message?.substring(0, 50)}</p>
+            </div>
+            <button onClick={cancelEdit} style={{ background: "none", border: "none", cursor: "pointer" }}><X size={14} /></button>
+          </div>
+        )}
+
         {activeChatUser && !text.trim() && smartReplies.length > 0 ? (
           <div className="smart-reply-row">
             <div className="smart-reply-title">
@@ -109,27 +134,37 @@ export default function MessageComposer({
           <InteractiveComposer
             onSendPoll={submitPoll}
             onSendMiniGame={sendMiniGame}
-            disabled={!activeChatUser || !isConnected}
+            disabled={!activeChatUser}
             triggerClassName="utility-trigger"
           />
           <VoiceNoteComposer
             onSendVoiceNote={sendVoiceNote}
-            disabled={!activeChatUser || !isConnected}
+            disabled={!activeChatUser}
           />
           <button
             type="button"
             className="voice-note-trigger utility-trigger"
-            disabled={!activeChatUser || !isConnected}
+            disabled={!activeChatUser}
             onClick={() => setIsWhiteboardOpen(true)}
             title="Whiteboard"
             aria-label="Whiteboard"
           >
             <PenSquare size={16} />
           </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "auto" }}>
+            <input 
+              type="datetime-local" 
+              value={scheduledFor || ""} 
+              onChange={(e) => setScheduledFor(e.target.value)} 
+              style={{ fontSize: "12px", padding: "4px", borderRadius: "4px", border: "1px solid #ccc", background: "var(--input-bg)" }}
+              title="Schedule message"
+            />
+            <Clock size={16} style={{ opacity: 0.6 }} />
+          </div>
         </div>
 
         <WhiteboardComposer
-          disabled={!activeChatUser || !isConnected}
+          disabled={!activeChatUser}
           isOpen={isWhiteboardOpen}
           onClose={() => setIsWhiteboardOpen(false)}
           onSendWhiteboard={sendWhiteboard}
@@ -191,15 +226,15 @@ export default function MessageComposer({
                 ? secretMode
                   ? "Send secret message"
                   : "Type a message or /command"
-                : "Connecting..."
+                : "Offline - Message will be queued"
             }
-            disabled={!isConnected || !activeChatUser}
+            disabled={!activeChatUser}
             className="message-input"
           />
 
           <button
             onClick={sendMessage}
-            disabled={!text.trim() || !isConnected || !activeChatUser}
+            disabled={!text.trim() || !activeChatUser}
             className="send-button"
           >
             <Send size={20} />

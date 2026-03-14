@@ -1,7 +1,57 @@
 const redis = require("../cache/redis");
 const { publishMessage } = require("../queue/publisher");
 
+// Poll for scheduled messages every second
+setInterval(async () => {
+  try {
+    const now = Date.now();
+    const messages = await redis.zrangebyscore("scheduled_messages", 0, now);
+    if (messages && messages.length > 0) {
+      for (const msgStr of messages) {
+        await redis.zrem("scheduled_messages", msgStr);
+        try {
+          const msg = JSON.parse(msgStr);
+          await publishMessage(msg);
+          // Optional: we can't easily emit to specific sockets without `io` here, 
+          // but we can rely on the worker to persist it, or we can use a global event.
+          // Since we need io, we will pass it into the function or handle it in the connection.
+        } catch (e) {
+          console.error("Failed to process scheduled message", e);
+        }
+      }
+    }
+  } catch(e) {}
+}, 1000);
+
 module.exports = (io) => {
+  // We can also have a poller here that has access to `io`
+  setInterval(async () => {
+    try {
+      const now = Date.now();
+      const messages = await redis.zrangebyscore("scheduled_messages_io", 0, now);
+      if (messages && messages.length > 0) {
+        for (const msgStr of messages) {
+          await redis.zrem("scheduled_messages_io", msgStr);
+          try {
+            const msg = JSON.parse(msgStr);
+            await publishMessage(msg);
+            
+            const targetSocketId = await redis.get(`user:${msg.toUserId}`);
+            if (targetSocketId) {
+              io.to(targetSocketId).emit("private_message", msg);
+            }
+            const senderSocketId = await redis.get(`user:${msg.fromUserId}`);
+            if (senderSocketId) {
+              io.to(senderSocketId).emit("private_message", msg);
+            }
+          } catch (e) {
+            console.error("Failed to process scheduled message in io", e);
+          }
+        }
+      }
+    } catch(e) {}
+  }, 1000);
+
   io.on("connection", async (socket) => {
     console.log(`Socket connected: ${socket.id}, userId: ${socket.userId}`);
 
@@ -61,8 +111,17 @@ module.exports = (io) => {
         message,
         timestamp: Number(payload.timestamp || Date.now()),
         type: payload.type || "text",
+        replyTo: payload.replyTo || null,
+        threadId: payload.threadId || null,
         reactions: payload.reactions && typeof payload.reactions === "object" ? payload.reactions : {},
       };
+
+      if (payload.scheduledFor && payload.scheduledFor > Date.now()) {
+        await redis.zadd("scheduled_messages_io", payload.scheduledFor, JSON.stringify(messagePayload));
+        // Notify sender it's scheduled
+        socket.emit("message_scheduled", messagePayload);
+        return;
+      }
 
       const targetSocketId = await redis.get(`user:${toUserId}`);
 
@@ -73,6 +132,44 @@ module.exports = (io) => {
       } else {
         console.log(`User ${toUserId} is offline`);
       }
+    });
+
+    socket.on("edit_message", async ({ toUserId, messageId, newText, history }) => {
+      const fromUserId = socket.userId;
+      const targetUserId = toUserId ? String(toUserId) : "";
+      if (!fromUserId || !targetUserId || !messageId || !newText) return;
+      
+      const roomId = [String(fromUserId), targetUserId].sort().join(":");
+      await redis.hset(`room_edits:${roomId}`, String(messageId), JSON.stringify({ newText, history }));
+
+      const targetSocketId = await redis.get(`user:${targetUserId}`);
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit("edit_message", {
+        messageId: String(messageId),
+        newText,
+        history,
+        userId: String(fromUserId),
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on("delete_message", async ({ toUserId, messageId }) => {
+      const fromUserId = socket.userId;
+      const targetUserId = toUserId ? String(toUserId) : "";
+      if (!fromUserId || !targetUserId || !messageId) return;
+
+      const roomId = [String(fromUserId), targetUserId].sort().join(":");
+      await redis.sadd(`room_deletions:${roomId}`, String(messageId));
+
+      const targetSocketId = await redis.get(`user:${targetUserId}`);
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit("delete_message", {
+        messageId: String(messageId),
+        userId: String(fromUserId),
+        timestamp: Date.now(),
+      });
     });
 
 

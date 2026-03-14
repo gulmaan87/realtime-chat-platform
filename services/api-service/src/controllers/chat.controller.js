@@ -21,10 +21,24 @@ async function getChatHistory(req, res) {
     await redis.connect().catch(() => {});
     const redisKey = `room:${roomId}`;
     const entries = await redis.lrange(redisKey, 0, 99);
+    
+    // Fetch edits and deletions
+    const edits = await redis.hgetall(`room_edits:${roomId}`) || {};
+    const deletions = await redis.smembers(`room_deletions:${roomId}`) || [];
+
     const messages = entries
       .map((item) => {
         try {
-          return JSON.parse(item);
+          const parsed = JSON.parse(item);
+          if (!parsed || !parsed.localId) return parsed;
+          if (deletions.includes(parsed.localId)) {
+            return { ...parsed, isDeleted: true, message: "This message was deleted" };
+          }
+          if (edits[parsed.localId]) {
+            const editData = JSON.parse(edits[parsed.localId]);
+            return { ...parsed, message: editData.newText, isEdited: true, editHistory: editData.history };
+          }
+          return parsed;
         } catch {
           return null;
         }

@@ -165,8 +165,43 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const [friendshipStats, setFriendshipStats] = useState(() =>
     loadFriendshipStats()
   );
+  
+  const [offlineQueue, setOfflineQueue] = useState(() => {
+    try {
+      const q = localStorage.getItem(`offline_queue_${userId}`);
+      return q ? JSON.parse(q) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [editingMessage, setEditingMessage] = useState(null);
+  const [scheduledFor, setScheduledFor] = useState("");
 
   const messagesEndRef = useRef(null);
+
+// ... later in the file ...
+
+  useEffect(() => {
+    localStorage.setItem(`offline_queue_${userId}`, JSON.stringify(offlineQueue));
+  }, [offlineQueue, userId]);
+
+  useEffect(() => {
+    if (isConnected && offlineQueue.length > 0 && socketRef.current) {
+      // flush offline queue
+      offlineQueue.forEach(payload => {
+        socketRef.current.emit("private_message", payload);
+      });
+      setOfflineQueue([]);
+    }
+  }, [isConnected, offlineQueue, userId]);
+
+  const { token, user } = getSession();
+
+// ... find socket.on('connect' ... and add handlers
+
+// We need to carefully replace the hooks and functions without breaking.
+// I will just use run_shell_command or a precise replacement.
   const inputRef = useRef(null);
   const typingMetricsRef = useRef({ lastValue: "", lastTimestamp: 0 });
   const typingEmitCooldownRef = useRef(0);
@@ -454,6 +489,24 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       });
     });
 
+    socket.on("delete_message", ({ messageId, userId: deleterId }) => {
+      if (!messageId) return;
+      setMessages((prev) =>
+        prev.map((entry) =>
+          entry.localId === messageId ? { ...entry, isDeleted: true } : entry
+        )
+      );
+    });
+
+    socket.on("edit_message", ({ messageId, newText, history, userId: editorId }) => {
+      if (!messageId || !newText) return;
+      setMessages((prev) =>
+        prev.map((entry) =>
+          entry.localId === messageId ? { ...entry, message: newText, isEdited: true, editHistory: history } : entry
+        )
+      );
+    });
+
     socket.on("disconnect", () => setIsConnected(false));
     socket.connect();
 
@@ -470,6 +523,8 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
         "poll_vote",
         "mini_game_attempt",
         "whiteboard_sync",
+        "delete_message",
+        "edit_message",
         "disconnect",
       ].forEach((eventName) => socket.off(eventName));
 
@@ -550,8 +605,30 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     [userId, userName]
   );
 
+  const handleEdit = useCallback((message) => {
+    setEditingMessage(message);
+    setText(message.message);
+    inputRef.current?.focus();
+  }, []);
+
+  const handleDelete = useCallback((message) => {
+    if (window.confirm("Are you sure you want to delete this message?")) {
+      socketRef.current?.emit("delete_message", { toUserId: chatPartnerId, messageId: message.localId });
+      setMessages((prev) =>
+        prev.map((entry) =>
+          entry.localId === message.localId ? { ...entry, isDeleted: true } : entry
+        )
+      );
+    }
+  }, [chatPartnerId]);
+
+  const handleReply = useCallback((message) => {
+    setReplyingTo(message);
+    inputRef.current?.focus();
+  }, []);
+
   const sendMessage = useCallback(async () => {
-    if (!text.trim() || !isConnected || !chatPartnerId) return;
+    if (!text.trim() || !chatPartnerId) return;
 
     if (text.trim().startsWith("/")) {
       const result = await executeAssistantCommand({
@@ -589,6 +666,25 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       return;
     }
 
+    if (editingMessage) {
+      const history = editingMessage.editHistory || [];
+      const newHistory = [...history, { text: editingMessage.message, timestamp: Date.now() }];
+      socketRef.current?.emit("edit_message", {
+        toUserId: chatPartnerId,
+        messageId: editingMessage.localId,
+        newText: text.trim(),
+        history: newHistory
+      });
+      setMessages((prev) =>
+        prev.map((entry) =>
+          entry.localId === editingMessage.localId ? { ...entry, message: text.trim(), isEdited: true, editHistory: newHistory } : entry
+        )
+      );
+      setEditingMessage(null);
+      setText("");
+      return;
+    }
+
     const now = Date.now();
     const localId = `${String(userId)}-${String(chatPartnerId)}-${now}`;
     const outgoingText = outgoingTonePreview.rewritten || text.trim();
@@ -602,6 +698,8 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       message: outgoingText,
       timestamp: now,
       type: secretMode ? "secret" : "text",
+      replyTo: replyingTo ? replyingTo.localId : null,
+      scheduledFor: scheduledFor ? new Date(scheduledFor).getTime() : null,
       secret: secretMode
         ? {
             challenge: String(Math.floor(Math.random() * 9000) + 1000),
@@ -612,8 +710,18 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
       reactions: {},
     };
 
-    socketRef.current?.emit("private_message", payload);
-    setMessages((prev) => [...prev, { ...payload, self: true }]);
+    if (isConnected) {
+      socketRef.current?.emit("private_message", payload);
+    } else {
+      payload.status = "pending";
+      setOfflineQueue(prev => [...prev, payload]);
+    }
+
+    if (payload.scheduledFor) {
+      setGamificationToast(`Message scheduled for ${new Date(payload.scheduledFor).toLocaleString()}`);
+    } else {
+      setMessages((prev) => [...prev, { ...payload, self: true }]);
+    }
 
     const xpUpdate = awardMessageXp();
     setXpState(xpUpdate);
@@ -640,6 +748,8 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     setText("");
     setSecretMode(false);
     setCommandSuggestions([]);
+    setReplyingTo(null);
+    setScheduledFor("");
     inputRef.current?.focus();
   }, [
     activeChatUser,
@@ -653,6 +763,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     userId,
     userName,
     outgoingTonePreview,
+    editingMessage,
+    replyingTo,
+    scheduledFor
   ]);
 
   const applyReaction = useCallback(
@@ -1350,6 +1463,9 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             getMessageIntentChips={getMessageIntentChips}
             onIntentAction={handleIntentAction}
             messagesEndRef={messagesEndRef}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onReply={handleReply}
           />
 
           <MessageComposer
@@ -1383,6 +1499,12 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             handleTypingInput={handleTypingInput}
             setActiveCommandIndex={setActiveCommandIndex}
             sendMessage={sendMessage}
+            editingMessage={editingMessage}
+            cancelEdit={() => { setEditingMessage(null); setText(""); }}
+            replyingTo={replyingTo}
+            cancelReply={() => setReplyingTo(null)}
+            scheduledFor={scheduledFor}
+            setScheduledFor={setScheduledFor}
           />
         </div>
 

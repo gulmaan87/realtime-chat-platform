@@ -56,14 +56,25 @@ export default function AssistantRail({
 }) {
   const [activeTab, setActiveTab] = useState("summary");
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchFilter, setSearchFilter] = useState("all");
   const topic = buildTopic(activeChatUser);
   const contactName = activeChatUser?.username || activeChatUser?.email || "this contact";
   const replyBank =
     smartReplies.length > 0 ? smartReplies : ["Sounds good", "On my way", "Let's do it"];
   const actionItems = useMemo(() => extractActionItems(messages), [messages]);
   const searchResults = useMemo(
-    () => semanticSearchMessages(messages, searchQuery, 4),
-    [messages, searchQuery]
+    () => {
+      let filteredMessages = messages;
+      if (searchFilter === "me") {
+        filteredMessages = messages.filter(m => m.self || m.fromUserId === activeChatUser?.id);
+      } else if (searchFilter === "them") {
+        filteredMessages = messages.filter(m => !m.self && m.fromUserId !== activeChatUser?.id);
+      } else if (searchFilter === "files") {
+        filteredMessages = messages.filter(m => m.type === "voice_note" || m.type === "whiteboard");
+      }
+      return semanticSearchMessages(filteredMessages, searchQuery, 4);
+    },
+    [messages, searchQuery, searchFilter, activeChatUser]
   );
   const leaderboard = useMemo(
     () =>
@@ -299,15 +310,27 @@ export default function AssistantRail({
                 </div>
               </div>
 
-              <label className="assistant-search">
-                <Search size={16} />
-                <input
-                  type="text"
-                  placeholder="Search messages by meaning or keyword"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </label>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "12px" }}>
+                <label className="assistant-search" style={{ flex: 1, marginBottom: 0 }}>
+                  <Search size={16} />
+                  <input
+                    type="text"
+                    placeholder="Search messages by meaning or keyword"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </label>
+                <select 
+                  value={searchFilter} 
+                  onChange={(e) => setSearchFilter(e.target.value)}
+                  style={{ padding: "6px", borderRadius: "4px", border: "1px solid var(--border-color)", background: "var(--bg-panel)", color: "var(--text-primary)" }}
+                >
+                  <option value="all">All</option>
+                  <option value="me">From Me</option>
+                  <option value="them">From Them</option>
+                  <option value="files">Media</option>
+                </select>
+              </div>
 
               {searchQuery.trim() ? (
                 searchResults.length > 0 ? (
