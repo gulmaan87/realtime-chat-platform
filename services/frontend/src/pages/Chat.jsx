@@ -160,6 +160,10 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
   const [gamificationToast, setGamificationToast] = useState(null);
   const [achievementToast, setAchievementToast] = useState(null);
   const [xpState, setXpState] = useState(() => getStoredXpState());
+  const { token, user } = getSession();
+  const userName = user?.username || user?.email || "User";
+  const userId = getUserId(user);
+
   const [achievements, setAchievements] = useState(() => loadAchievements());
   const [aiTasks, setAiTasks] = useState(() => loadAiTasks());
   const [friendshipStats, setFriendshipStats] = useState(() =>
@@ -180,15 +184,12 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
 
   const messagesEndRef = useRef(null);
 
-// ... later in the file ...
-
   useEffect(() => {
     localStorage.setItem(`offline_queue_${userId}`, JSON.stringify(offlineQueue));
   }, [offlineQueue, userId]);
 
   useEffect(() => {
     if (isConnected && offlineQueue.length > 0 && socketRef.current) {
-      // flush offline queue
       offlineQueue.forEach(payload => {
         socketRef.current.emit("private_message", payload);
       });
@@ -196,21 +197,11 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
     }
   }, [isConnected, offlineQueue, userId]);
 
-  const { token, user } = getSession();
-
-// ... find socket.on('connect' ... and add handlers
-
-// We need to carefully replace the hooks and functions without breaking.
-// I will just use run_shell_command or a precise replacement.
   const inputRef = useRef(null);
   const typingMetricsRef = useRef({ lastValue: "", lastTimestamp: 0 });
   const typingEmitCooldownRef = useRef(0);
   const typingStopTimerRef = useRef(null);
   const socketRef = useRef(null);
-
-  const { token, user } = getSession();
-  const userName = user?.username || user?.email || "User";
-  const userId = getUserId(user);
 
   const chatPartnerId = useMemo(
     () => activeChatUser?.id || activeChatUser?._id || null,
