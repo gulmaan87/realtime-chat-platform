@@ -1,107 +1,58 @@
-export const SEEDED_CONTACTS = [
+export const INITIAL_CONVERSATIONS = [
   {
     id: "ai-copilot",
+    name: "LevelUp Copilot",
     username: "LevelUp Copilot",
-    email: "ai@levelup.chat",
     type: "ai",
     status: "online",
-    lastMessage: "I've summarized your latest meetings.",
-    lastActive: "Now",
-    unread: 0,
+    avatar: "🤖",
+    unreadCount: 0,
+    lastActive: "Just now",
+    streak: 0,
+    tier: "System",
+    summary: "AI Assistant is analyzing your productivity workflows.",
+    actions: ["Summarize unread", "Schedule follow-up", "Draft reply"],
+    insights: { mood: "Neutral", health: "100%", cadence: "Instant" },
+    messages: [
+      { id: 1, senderId: "ai", text: "Welcome Alex! I'm your LevelUp Copilot. How can I help you level up your workflow today?", timestamp: Date.now() - 100000, status: "read" }
+    ]
   },
   {
     id: "user-1",
+    name: "Elena Rostova",
     username: "Elena Rostova",
-    email: "elena@example.com",
     type: "dm",
     status: "online",
-    lastMessage: "Did you check the new Figma designs?",
+    avatar: "ER",
+    unreadCount: 3,
     lastActive: "2m ago",
-    unread: 3,
     streak: 12,
-    tier: "Close Friend"
+    tier: "Close Friend",
+    summary: "Elena is waiting for the final Figma links for the redesign.",
+    actions: ["Send Figma link", "Confirm meeting"],
+    insights: { mood: "Excited", health: "92%", cadence: "Fast" },
+    messages: [
+      { id: 1, senderId: "user-1", text: "Hey! Are the glassmorphism assets ready?", timestamp: Date.now() - 500000, status: "read" },
+      { id: 2, senderId: "me", text: "Almost there, just tweaking the blur values.", timestamp: Date.now() - 400000, status: "read" },
+      { id: 3, senderId: "user-1", text: "Can't wait to see them. The purple glow looks amazing.", timestamp: Date.now() - 300000, status: "delivered" }
+    ]
   },
   {
     id: "group-1",
+    name: "Frontend Guild",
     username: "Frontend Guild",
     type: "group",
-    status: "online",
-    lastMessage: "Alex: We need to update the React version.",
+    status: "3 active",
+    avatar: "FG",
+    unreadCount: 0,
     lastActive: "15m ago",
-    unread: 0,
-  },
-  {
-    id: "user-2",
-    username: "Marcus Chen",
-    email: "marcus@example.com",
-    type: "dm",
-    status: "offline",
-    lastMessage: "Sounds like a plan! 🚀",
-    lastActive: "2h ago",
-    unread: 0,
-    streak: 5,
-    tier: "Trusted"
-  },
-  {
-    id: "user-3",
-    username: "Sarah Jenkins",
-    email: "sarah@example.com",
-    type: "dm",
-    status: "offline",
-    lastMessage: "Can we reschedule to 3PM?",
-    lastActive: "1d ago",
-    unread: 0,
+    streak: 45,
+    tier: "Elite",
+    summary: "Team discussing React 19 concurrent rendering features.",
+    actions: ["View roadmap", "Check PR #402"],
+    insights: { mood: "Collaborative", health: "85%", cadence: "Moderate" },
+    messages: [
+      { id: 1, senderId: "user-2", senderName: "Marcus", text: "Has anyone tried the new useTransition hook?", timestamp: Date.now() - 1000000, status: "read" }
+    ]
   }
 ];
-
-export const SEEDED_MESSAGES = [
-  {
-    localId: "seed-1",
-    fromUserId: "user-1",
-    from: "Elena Rostova",
-    message: "Hey! Are we still on for the UI review today?",
-    timestamp: Date.now() - 1000 * 60 * 60 * 2,
-    type: "text",
-    reactions: { "👍": ["user-2"] }
-  },
-  {
-    localId: "seed-2",
-    fromUserId: "me",
-    from: "Me",
-    message: "Yes! I've updated the component library.",
-    timestamp: Date.now() - 1000 * 60 * 60 * 1.5,
-    type: "text",
-    self: true
-  },
-  {
-    localId: "seed-3",
-    fromUserId: "user-1",
-    from: "Elena Rostova",
-    message: "Awesome. Did you add the new glassmorphism variants?",
-    timestamp: Date.now() - 1000 * 60 * 60 * 1.4,
-    type: "text"
-  },
-  {
-    localId: "seed-4",
-    fromUserId: "me",
-    from: "Me",
-    message: "Yep, pushed them to the main branch just now. 🎨",
-    timestamp: Date.now() - 1000 * 60 * 5,
-    type: "text",
-    self: true,
-    reactions: { "🔥": ["user-1"] }
-  }
-];
-
-export const SEEDED_ASSISTANT_DATA = {
-  summary: "Elena is asking about the UI review and glassmorphism variants. You confirmed the updates are pushed to the main branch.",
-  tasks: [
-    { id: 1, text: "Review UI with Elena at 3PM" },
-    { id: 2, text: "Verify glassmorphism components in staging" }
-  ],
-  insights: {
-    mood: "Collaborative & Positive",
-    health: "98%",
-    nextAction: "Share the staging link with Elena."
-  }
-};
