@@ -3,7 +3,7 @@ import {
   MessageCircle, Users, Hash, Cpu, Settings as SettingsIcon, LogOut, 
   Search, Plus, Phone, Video, MoreHorizontal, Send, Smile, Paperclip, Mic, Sparkles, RefreshCw
 } from "lucide-react";
-import { INITIAL_CONVERSATIONS } from './utils/seedData';
+import { INITIAL_CONVERSATIONS } from '../utils/seedData';
 import { createSocket } from "../services/socket";
 import { fetchChatHistory } from "../services/api";
 import { getSession, getUserId, clearSession } from "../services/session";
