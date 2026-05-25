@@ -127,6 +127,7 @@ export default function Chat({ activeChatUser, setActiveChatUser }) {
             getInitials={getInitials}
             toTime={toTime}
             messagesEndRef={messagesEndRef}
+            activeChatUser={activeChatUser}
           />
           <MessageComposer
             text={text}

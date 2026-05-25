@@ -1,14 +1,28 @@
+import { useState, useEffect } from "react";
 import { Phone, Mail, Calendar, User, Image as ImageIcon } from "lucide-react";
 
 export default function AssistantRail({ activeChatUser }) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [activeChatUser]);
+
   if (!activeChatUser) return <div className="chat-details-shell">Select a contact to view details</div>;
+
+  const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
+  const hasPic = activeChatUser.profilePicUrl && activeChatUser.profilePicUrl.startsWith("/uploads/");
+  const picUrl = hasPic && !failed 
+    ? `${AUTH_API_URL}${activeChatUser.profilePicUrl}` 
+    : `https://ui-avatars.com/api/?name=${activeChatUser.username}&size=120&background=random`;
 
   return (
     <div className="chat-details-shell">
       <img
-        src={`https://ui-avatars.com/api/?name=${activeChatUser.username}&size=120&background=random`}
+        src={picUrl}
         alt="Profile"
         className="profile-large-avatar"
+        onError={() => setFailed(true)}
       />
       <h3 className="profile-name">{activeChatUser.username}</h3>
       <p className="profile-role">Product Designer</p>

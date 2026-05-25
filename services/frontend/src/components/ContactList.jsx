@@ -1,4 +1,30 @@
+import { useState } from "react";
 import { Search, Plus } from "lucide-react";
+
+function ContactAvatar({ contact }) {
+  const [failed, setFailed] = useState(false);
+  const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
+  const picUrl = contact.profilePicUrl && contact.profilePicUrl.startsWith("/uploads/") ? `${AUTH_API_URL}${contact.profilePicUrl}` : "";
+
+  if (picUrl && !failed) {
+    return (
+      <div className="avatar" style={{ width: "44px", height: "44px", borderRadius: "50%", overflow: "hidden" }}>
+        <img
+          src={picUrl}
+          alt={contact.username}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          onError={() => setFailed(true)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="avatar" style={{ backgroundColor: "#8b5cf6", width: "44px", height: "44px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%" }}>
+      {contact.username?.slice(0, 2).toUpperCase()}
+    </div>
+  );
+}
 
 export default function ContactList({
   onSelect,
@@ -30,9 +56,7 @@ export default function ContactList({
               className={`contact-item ${isActive ? "active" : ""}`}
               onClick={() => onSelect(contact)}
             >
-              <div className="avatar" style={{ backgroundColor: "#8b5cf6", width: "44px", height: "44px" }}>
-                {contact.username?.slice(0, 2).toUpperCase()}
-              </div>
+              <ContactAvatar contact={contact} />
               <div className="contact-info">
                 <h4>{contact.username}</h4>
                 <p>{isOnline ? "Online" : "Offline"}</p>
