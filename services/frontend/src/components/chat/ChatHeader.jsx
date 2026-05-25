@@ -1,4 +1,36 @@
+import { useState } from "react";
 import { Phone, Video, Search, Pin, MoreHorizontal } from "lucide-react";
+
+function HeaderAvatar({ contact, getInitials }) {
+  const [failed, setFailed] = useState(false);
+  const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
+  const picUrl = contact?.profilePicUrl && contact.profilePicUrl.startsWith("/uploads/") ? `${AUTH_API_URL}${contact.profilePicUrl}` : "";
+
+  if (contact?.type === 'ai') {
+    return (
+      <div className="contact-avatar ai">🤖</div>
+    );
+  }
+
+  if (picUrl && !failed) {
+    return (
+      <div className="contact-avatar" style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <img
+          src={picUrl}
+          alt={contact.username}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          onError={() => setFailed(true)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="contact-avatar">
+      {getInitials(contact?.username || "")}
+    </div>
+  );
+}
 
 export default function ChatHeader({
   activeChatUser,
@@ -11,9 +43,7 @@ export default function ChatHeader({
     <div className="chat-header">
       <div className="header-user-info">
         <div className="contact-avatar-wrapper">
-          <div className={`contact-avatar ${activeChatUser.type === 'ai' ? 'ai' : ''}`}>
-            {activeChatUser.type === 'ai' ? '🤖' : getInitials(activeChatUser.username)}
-          </div>
+          <HeaderAvatar contact={activeChatUser} getInitials={getInitials} />
           <div className={`status-dot ${activeChatOnline || activeChatUser.status === 'online' ? "online" : "offline"}`} />
         </div>
         <div>

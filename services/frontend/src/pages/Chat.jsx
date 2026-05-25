@@ -9,28 +9,62 @@ import { fetchChatHistory } from "../services/api";
 import { getSession, getUserId, clearSession } from "../services/session";
 import "../App.css";
 
-// --- Sub-Components (Maintained from redesign) ---
+// --- Sub-Components (Maintained from redesign with custom avatar support & test-ids) ---
 
-const UtilityRail = ({ onLogout, userName }) => (
-  <aside className="app-rail">
-    <div className="rail-top">
-      <div className="profile-launcher" title="Your Profile">
-        {userName.slice(0, 2).toUpperCase()}
+const UtilityRail = ({ onLogout, userName, userProfilePic }) => {
+  const [failed, setFailed] = useState(false);
+  const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
+  const picUrl = userProfilePic && userProfilePic.startsWith("/uploads/") && !failed ? `${AUTH_API_URL}${userProfilePic}` : "";
+
+  return (
+    <aside className="app-rail">
+      <div className="rail-top">
+        <div className="profile-launcher" title="Your Profile" onClick={() => window.location.href = "/settings"}>
+          {picUrl ? (
+            <img src={picUrl} alt={userName} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => setFailed(true)} />
+          ) : (
+            userName.slice(0, 2).toUpperCase()
+          )}
+        </div>
+        <button className="rail-button active" title="Chats"><MessageCircle size={22} /></button>
+        <button className="rail-button" title="Friends"><Users size={22} /></button>
+        <button className="rail-button" title="Groups"><Hash size={22} /></button>
+        <button className="rail-button" title="AI Dojo"><Cpu size={22} /></button>
       </div>
-      <button className="rail-button active" title="Chats"><MessageCircle size={22} /></button>
-      <button className="rail-button" title="Friends"><Users size={22} /></button>
-      <button className="rail-button" title="Groups"><Hash size={22} /></button>
-      <button className="rail-button" title="AI Dojo"><Cpu size={22} /></button>
+      <div className="rail-bottom">
+        <button className="rail-button" title="Settings" onClick={() => window.location.href = "/settings"}><SettingsIcon size={22} /></button>
+        <button className="rail-button" title="Logout" onClick={onLogout}><LogOut size={22} /></button>
+      </div>
+    </aside>
+  );
+};
+
+const ContactAvatar = ({ contact }) => {
+  const [failed, setFailed] = useState(false);
+  const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
+  const picUrl = contact?.profilePicUrl && contact.profilePicUrl.startsWith("/uploads/") ? `${AUTH_API_URL}${contact.profilePicUrl}` : "";
+
+  if (contact?.type === 'ai') {
+    return <div className="contact-avatar ai">🤖</div>;
+  }
+
+  if (picUrl && !failed) {
+    return (
+      <div className="contact-avatar" style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <img src={picUrl} alt={contact.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => setFailed(true)} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="contact-avatar">
+      {contact?.avatar || contact?.name?.slice(0, 2).toUpperCase() || "U"}
     </div>
-    <div className="rail-bottom">
-      <button className="rail-button" title="Settings"><SettingsIcon size={22} /></button>
-      <button className="rail-button" title="Logout" onClick={onLogout}><LogOut size={22} /></button>
-    </div>
-  </aside>
-);
+  );
+};
 
 const ConversationList = ({ conversations, activeId, onSelect, searchQuery, setSearchQuery, filter, setFilter, onlineStatuses }) => (
-  <div className="contact-list-sidebar">
+  <div className="contact-list-sidebar" data-testid="contact-list">
     <div className="inbox-header">
       <div className="inbox-title-row">
         <h2>Messages</h2>
@@ -66,9 +100,7 @@ const ConversationList = ({ conversations, activeId, onSelect, searchQuery, setS
             onClick={() => onSelect(c.id)}
           >
             <div className="contact-avatar-wrapper" style={{ position: 'relative' }}>
-              <div className={`contact-avatar ${c.type === 'ai' ? 'ai' : ''}`} style={{ width: 48, height: 48, borderRadius: 16, background: 'var(--glass-highlight)', display: 'grid', placeItems: 'center' }}>
-                {c.avatar || c.name.slice(0, 2).toUpperCase()}
-              </div>
+              <ContactAvatar contact={c} />
               <div className={`status-dot ${isOnline ? "online" : "offline"}`} />
             </div>
             <div className="contact-info" style={{ flex: 1, minWidth: 0 }}>
@@ -89,6 +121,54 @@ const ConversationList = ({ conversations, activeId, onSelect, searchQuery, setS
     </div>
   </div>
 );
+
+const HeaderAvatar = ({ chat }) => {
+  const [failed, setFailed] = useState(false);
+  const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
+  const picUrl = chat?.profilePicUrl && chat.profilePicUrl.startsWith("/uploads/") ? `${AUTH_API_URL}${chat.profilePicUrl}` : "";
+
+  if (chat?.type === 'ai') {
+    return <div className="contact-avatar ai">🤖</div>;
+  }
+
+  if (picUrl && !failed) {
+    return (
+      <div className="contact-avatar" style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <img src={picUrl} alt={chat.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => setFailed(true)} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="contact-avatar">
+      {chat?.avatar || chat?.name?.slice(0, 2).toUpperCase() || "U"}
+    </div>
+  );
+};
+
+const MessageAvatar = ({ chat, isAi }) => {
+  const [failed, setFailed] = useState(false);
+  const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
+  const picUrl = chat?.profilePicUrl && chat.profilePicUrl.startsWith("/uploads/") ? `${AUTH_API_URL}${chat.profilePicUrl}` : "";
+
+  if (isAi) {
+    return <div className="msg-avatar ai">🤖</div>;
+  }
+
+  if (picUrl && !failed) {
+    return (
+      <div className="msg-avatar" style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <img src={picUrl} alt={chat.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={() => setFailed(true)} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="msg-avatar">
+      {chat?.avatar || chat?.name?.slice(0, 2).toUpperCase() || "U"}
+    </div>
+  );
+};
 
 const ChatPanel = ({ chat, onSendMessage, isTyping, onlineStatuses, onTypingStart, onTypingStop }) => {
   const [val, setVal] = useState("");
@@ -117,10 +197,11 @@ const ChatPanel = ({ chat, onSendMessage, isTyping, onlineStatuses, onTypingStar
 
   return (
     <main className="chat-main">
-      <header className="chat-header">
+      <header className="chat-header" data-testid="chat-header">
         <div className="header-user-info" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div className="contact-avatar" style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--glass-highlight)', display: 'grid', placeItems: 'center' }}>
-            {chat.avatar || chat.name.slice(0, 2).toUpperCase()}
+          <div className="contact-avatar-wrapper" style={{ position: 'relative' }}>
+            <HeaderAvatar chat={chat} />
+            <div className={`status-dot ${isOnline ? "online" : "offline"}`} />
           </div>
           <div>
             <h2 style={{ fontSize: '1.1rem' }}>{chat.name}</h2>
@@ -146,22 +227,27 @@ const ChatPanel = ({ chat, onSendMessage, isTyping, onlineStatuses, onTypingStar
         <span className="streak-cta" style={{ color: 'var(--accent-secondary)', fontWeight: 600, cursor: 'pointer' }}>Keep momentum</span>
       </div>
 
-      <div className="messages-container" ref={scrollRef}>
-        {chat.messages.map(m => (
-          <div key={m.id} className={`msg-wrapper ${m.senderId === 'me' ? 'own' : ''}`}>
-            <div className="msg-bubble">
-              {m.text}
-              <div className="message-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, fontSize: '0.7rem', opacity: 0.5 }}>
-                <span className="msg-time">{m.timestamp}</span>
-                {m.senderId === 'me' && (
-                  <span style={{ color: m.status === 'read' ? 'var(--accent-secondary)' : 'inherit' }}>
-                    {m.status === 'read' ? "✓✓" : "✓"}
-                  </span>
-                )}
+      <div className="messages-container" ref={scrollRef} data-testid="message-timeline">
+        {chat.messages.map(m => {
+          const isOwn = m.senderId === 'me';
+          const isAi = chat.type === 'ai' || m.senderId === 'ai-copilot';
+          return (
+            <div key={m.id} className={`msg-wrapper ${isOwn ? 'own' : ''}`}>
+              {!isOwn && (
+                <MessageAvatar chat={chat} isAi={isAi} />
+              )}
+              <div className="msg-content">
+                <div className="msg-header">
+                  {!isOwn && <span className="msg-author">{chat.name}</span>}
+                  <span className="msg-time">{m.timestamp}</span>
+                </div>
+                <div className="msg-bubble">
+                  {m.text}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {isTyping && (
           <div className="typing-indicator" style={{ display: 'flex', gap: 4, padding: '10px 16px', background: 'var(--glass-surface)', borderRadius: 20, width: 'fit-content' }}>
             <span className="spinning"><RefreshCw size={14} /></span>
@@ -170,7 +256,7 @@ const ChatPanel = ({ chat, onSendMessage, isTyping, onlineStatuses, onTypingStar
         )}
       </div>
 
-      <footer className="input-container">
+      <footer className="input-container" data-testid="message-composer">
         <form className="smart-composer" onSubmit={handleSend}>
           <button type="button" className="composer-action"><Paperclip size={20} /></button>
           <button type="button" className="composer-action"><Mic size={20} /></button>
@@ -195,7 +281,7 @@ const AssistantRail = ({ chat }) => {
   const [tab, setTab] = useState("summary");
 
   return (
-    <div className="chat-details-shell">
+    <div className="chat-details-shell" data-testid="assistant-rail">
       <div className="assistant-identity">
         <div className="assistant-avatar" style={{ width: 64, height: 64, borderRadius: 20, background: 'linear-gradient(135deg, #1e293b, #0f172a)', display: 'grid', placeItems: 'center', margin: '0 auto 12px', fontSize: '1.5rem' }}>🤖</div>
         <h3>Copilot</h3>
@@ -248,6 +334,7 @@ export default function Chat() {
   const { token, user } = getSession();
   const userId = getUserId(user) || "me";
   const userName = user?.username || "Alex Developer";
+  const userProfilePic = user?.profilePicUrl || "";
 
   // --- Real-time Socket Setup ---
   useEffect(() => {
@@ -283,7 +370,6 @@ export default function Chat() {
           }
           return c;
         });
-        // Sort by recency
         return [...updated].sort((a, b) => (String(a.id) === partnerId ? -1 : 1));
       });
     });
@@ -296,13 +382,13 @@ export default function Chat() {
     });
 
     socket.on("typing_start", ({ fromUserId: typingUserId }) => {
-      if (String(typingUserId) === String(chatPartnerId)) {
+      if (String(typingUserId) === String(activeId)) {
         setIsTyping(true);
       }
     });
 
     socket.on("typing_stop", ({ fromUserId: typingUserId }) => {
-      if (String(typingUserId) === String(chatPartnerId)) {
+      if (String(typingUserId) === String(activeId)) {
         setIsTyping(false);
       }
     });
@@ -403,7 +489,7 @@ export default function Chat() {
   return (
     <div className="chat-app">
       <div className="chat-container">
-        <UtilityRail onLogout={handleLogout} userName={userName} />
+        <UtilityRail onLogout={handleLogout} userName={userName} userProfilePic={userProfilePic} />
         <ConversationList 
           conversations={filtered} 
           activeId={activeId} 

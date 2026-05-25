@@ -1,5 +1,36 @@
-import { Search, Plus, Edit } from "lucide-react";
 import { useState } from "react";
+import { Search, Plus, Edit } from "lucide-react";
+
+function ContactAvatar({ contact }) {
+  const [failed, setFailed] = useState(false);
+  const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
+  const picUrl = contact.profilePicUrl && contact.profilePicUrl.startsWith("/uploads/") ? `${AUTH_API_URL}${contact.profilePicUrl}` : "";
+
+  if (contact.type === 'ai') {
+    return (
+      <div className="contact-avatar ai">🤖</div>
+    );
+  }
+
+  if (picUrl && !failed) {
+    return (
+      <div className="contact-avatar" style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <img
+          src={picUrl}
+          alt={contact.username}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          onError={() => setFailed(true)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="contact-avatar">
+      {contact.username?.slice(0, 2).toUpperCase()}
+    </div>
+  );
+}
 
 export default function ContactList({
   onSelect,
@@ -49,9 +80,7 @@ export default function ContactList({
               onClick={() => onSelect(contact)}
             >
               <div className="contact-avatar-wrapper">
-                <div className={`contact-avatar ${contact.type === 'ai' ? 'ai' : ''}`}>
-                  {contact.type === 'ai' ? '🤖' : contact.username?.slice(0, 2).toUpperCase()}
-                </div>
+                <ContactAvatar contact={contact} />
                 <div className={`status-dot ${isOnline ? "online" : "offline"}`} />
               </div>
               
