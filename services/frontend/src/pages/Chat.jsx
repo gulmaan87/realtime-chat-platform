@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   MessageCircle, Users, Hash, Cpu, Settings as SettingsIcon, LogOut, 
-  Search, Plus, Phone, Video, MoreHorizontal, Send, Smile, Paperclip, Mic, Sparkles, RefreshCw
+  Search, Plus, Phone, Video, MoreHorizontal, Send, Smile, Paperclip, Mic, Sparkles, RefreshCw, Zap
 } from "lucide-react";
 import { INITIAL_CONVERSATIONS } from '../utils/seedData';
 import { createSocket } from "../services/socket";
