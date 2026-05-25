@@ -300,6 +300,44 @@ module.exports = (io) => {
       });
     });
 
+    socket.on("message_read", async ({ toUserId, messageId }) => {
+      const fromUserId = socket.userId;
+      if (!fromUserId || !toUserId || !messageId) return;
+
+      const roomId = [String(fromUserId), String(toUserId)].sort().join(":");
+      // Store read status in Redis for persistence
+      await redis.hset(`room_read_status:${roomId}`, String(messageId), "read");
+
+      const targetSocketId = await redis.get(`user:${toUserId}`);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit("message_read", {
+          messageId,
+          readerId: fromUserId,
+          timestamp: Date.now()
+        });
+      }
+    });
+
+    socket.on("typing_start", async ({ toUserId }) => {
+      const fromUserId = socket.userId;
+      if (!fromUserId || !toUserId) return;
+
+      const targetSocketId = await redis.get(`user:${toUserId}`);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit("typing_start", { fromUserId });
+      }
+    });
+
+    socket.on("typing_stop", async ({ toUserId }) => {
+      const fromUserId = socket.userId;
+      if (!fromUserId || !toUserId) return;
+
+      const targetSocketId = await redis.get(`user:${toUserId}`);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit("typing_stop", { fromUserId });
+      }
+    });
+
     socket.on("disconnect", async () => {
       console.log(`Socket disconnected: ${socket.id}, userId: ${socket.userId}`);
 

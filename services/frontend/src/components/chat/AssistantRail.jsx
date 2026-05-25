@@ -1,80 +1,84 @@
-import { useState, useEffect } from "react";
-import { Phone, Mail, Calendar, User, Image as ImageIcon } from "lucide-react";
+import { useState } from "react";
+import { Sparkles, Target, Zap, ChevronRight } from "lucide-react";
 
-export default function AssistantRail({ activeChatUser }) {
-  const [failed, setFailed] = useState(false);
+export default function AssistantRail({ activeChatUser, seededData }) {
+  const [activeTab, setActiveTab] = useState("Summary");
 
-  useEffect(() => {
-    setFailed(false);
-  }, [activeChatUser]);
-
-  if (!activeChatUser) return <div className="chat-details-shell">Select a contact to view details</div>;
-
-  const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
-  const hasPic = activeChatUser.profilePicUrl && activeChatUser.profilePicUrl.startsWith("/uploads/");
-  const picUrl = hasPic && !failed 
-    ? `${AUTH_API_URL}${activeChatUser.profilePicUrl}` 
-    : `https://ui-avatars.com/api/?name=${activeChatUser.username}&size=120&background=random`;
+  if (!activeChatUser) return null;
 
   return (
     <div className="chat-details-shell">
-      <img
-        src={picUrl}
-        alt="Profile"
-        className="profile-large-avatar"
-        onError={() => setFailed(true)}
-      />
-      <h3 className="profile-name">{activeChatUser.username}</h3>
-      <p className="profile-role">Product Designer</p>
-
-      <div className="social-links">
-        {/* Placeholder social icons could go here */}
+      <div className="assistant-identity">
+        <div className="assistant-avatar">
+          🤖
+        </div>
+        <h3>LevelUp Copilot</h3>
+        <p>Analyzing conversation with {activeChatUser.username}</p>
       </div>
 
-      <button className="edit-profile-btn">Edit Profile</button>
-
-      <div className="info-section">
-        <div className="info-item">
-          <Phone size={18} className="info-icon" />
-          <div className="info-content">
-            <label>Mobile</label>
-            <p>+430 332 4567</p>
-          </div>
-        </div>
-        <div className="info-item">
-          <Mail size={18} className="info-icon" />
-          <div className="info-content">
-            <label>Email</label>
-            <p>{activeChatUser.email || "no-email@example.com"}</p>
-          </div>
-        </div>
-        <div className="info-item">
-          <Calendar size={18} className="info-icon" />
-          <div className="info-content">
-            <label>Date of Birth</label>
-            <p>02/12/1990</p>
-          </div>
-        </div>
-        <div className="info-item">
-          <User size={18} className="info-icon" />
-          <div className="info-content">
-            <label>Gender</label>
-            <p>Male</p>
-          </div>
-        </div>
+      <div className="assistant-tabs">
+        {["Summary", "Actions", "Insights"].map(tab => (
+          <button
+            key={tab}
+            className={`ast-tab ${activeTab === tab ? "active" : ""}`}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab}
+          </button>
+        ))}
       </div>
 
-      <div className="shared-media">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h4 style={{ fontSize: "0.9rem", fontWeight: 700 }}>Shared Media</h4>
-          <button style={{ background: "none", border: "none", color: "#6b4ead", fontSize: "0.8rem", fontWeight: 600 }}>See All</button>
-        </div>
-        <div className="media-grid">
-          <div className="media-item"><ImageIcon size={24} style={{ opacity: 0.2 }} /></div>
-          <div className="media-item"><ImageIcon size={24} style={{ opacity: 0.2 }} /></div>
-          <div className="media-item"><ImageIcon size={24} style={{ opacity: 0.2 }} /></div>
-          <div className="media-item"><ImageIcon size={24} style={{ opacity: 0.2 }} /></div>
-        </div>
+      <div className="assistant-content">
+        {activeTab === "Summary" && (
+          <div className="insight-card">
+            <div className="insight-header">
+              <Sparkles size={16} /> Conversation Summary
+            </div>
+            <div className="insight-body">
+              {seededData?.summary || "No recent summary available."}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "Actions" && (
+          <div>
+            <div className="insight-header" style={{ marginBottom: "16px" }}>
+              <Target size={16} /> Suggested Next Steps
+            </div>
+            {seededData?.tasks?.map(task => (
+              <div key={task.id} className="task-item">
+                <input type="checkbox" />
+                <span className="task-text">{task.text}</span>
+              </div>
+            ))}
+            <button className="new-chat-btn" style={{ width: "100%", height: "auto", padding: "12px", marginTop: "12px", borderRadius: "12px", background: "var(--glass-surface)", display: "flex", justifyContent: "space-between" }}>
+              <span>Generate more ideas</span>
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
+
+        {activeTab === "Insights" && (
+          <div className="insight-card">
+            <div className="insight-header">
+              <Zap size={16} /> Interaction Stats
+            </div>
+            <div className="insight-body" style={{ display: "grid", gap: "12px" }}>
+              <div>
+                <strong style={{ color: "var(--text-primary)" }}>Current Mood</strong>
+                <p>{seededData?.insights?.mood || "Neutral"}</p>
+              </div>
+              <div>
+                <strong style={{ color: "var(--text-primary)" }}>Relationship Health</strong>
+                <p>{seededData?.insights?.health || "Good"}</p>
+              </div>
+              <div>
+                <strong style={{ color: "var(--text-primary)" }}>Smart Advice</strong>
+                <p>{seededData?.insights?.nextAction || "Keep chatting to build connection."}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

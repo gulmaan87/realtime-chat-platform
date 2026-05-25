@@ -1,14 +1,20 @@
 import { useState } from "react";
-import { UserPlus, Phone, Video, Info } from "lucide-react";
+import { Phone, Video, Search, Pin, MoreHorizontal } from "lucide-react";
 
-function HeaderAvatar({ contact, getAvatarColor, getInitials }) {
+function HeaderAvatar({ contact, getInitials }) {
   const [failed, setFailed] = useState(false);
   const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
   const picUrl = contact?.profilePicUrl && contact.profilePicUrl.startsWith("/uploads/") ? `${AUTH_API_URL}${contact.profilePicUrl}` : "";
 
+  if (contact?.type === 'ai') {
+    return (
+      <div className="contact-avatar ai">🤖</div>
+    );
+  }
+
   if (picUrl && !failed) {
     return (
-      <div className="avatar" style={{ width: "40px", height: "40px", borderRadius: "50%", overflow: "hidden" }}>
+      <div className="contact-avatar" style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <img
           src={picUrl}
           alt={contact.username}
@@ -20,8 +26,8 @@ function HeaderAvatar({ contact, getAvatarColor, getInitials }) {
   }
 
   return (
-    <div className="avatar" style={{ backgroundColor: getAvatarColor(contact.username), width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%" }}>
-      {getInitials(contact.username)}
+    <div className="contact-avatar">
+      {getInitials(contact?.username || "")}
     </div>
   );
 }
@@ -29,28 +35,41 @@ function HeaderAvatar({ contact, getAvatarColor, getInitials }) {
 export default function ChatHeader({
   activeChatUser,
   activeChatOnline,
-  getAvatarColor,
   getInitials,
 }) {
-  if (!activeChatUser) return <div className="chat-header">Select a conversation</div>;
+  if (!activeChatUser) return null;
 
   return (
     <div className="chat-header">
-      <div className="header-left">
-        <HeaderAvatar contact={activeChatUser} getAvatarColor={getAvatarColor} getInitials={getInitials} />
-        <div className="header-info">
+      <div className="header-user-info">
+        <div className="contact-avatar-wrapper">
+          <HeaderAvatar contact={activeChatUser} getInitials={getInitials} />
+          <div className={`status-dot ${activeChatOnline || activeChatUser.status === 'online' ? "online" : "offline"}`} />
+        </div>
+        <div>
           <h2>{activeChatUser.username}</h2>
-          <span style={{ color: activeChatOnline ? "var(--accent-success)" : "var(--text-muted)", fontSize: "0.8rem" }}>
-            {activeChatOnline ? "Online" : "Offline"}
-          </span>
+          <div className="header-user-status">
+            <span style={{ 
+              display: "inline-block", 
+              width: "8px", height: "8px", 
+              borderRadius: "50%", 
+              background: activeChatOnline || activeChatUser.status === 'online' ? "var(--status-online)" : "var(--status-offline)" 
+            }} />
+            {activeChatUser.type === 'group' 
+              ? "3 Members Online" 
+              : activeChatOnline || activeChatUser.status === 'online' 
+                ? "Online" 
+                : "Offline"}
+          </div>
         </div>
       </div>
 
       <div className="header-actions">
-        <button><UserPlus size={20} /></button>
-        <button><Phone size={20} /></button>
-        <button><Video size={20} /></button>
-        <button><Info size={20} /></button>
+        <button className="header-action-btn" title="Start voice call"><Phone size={18} /></button>
+        <button className="header-action-btn" title="Start video call"><Video size={18} /></button>
+        <button className="header-action-btn" title="Search in chat"><Search size={18} /></button>
+        <button className="header-action-btn" title="Pinned messages"><Pin size={18} /></button>
+        <button className="header-action-btn" title="More options"><MoreHorizontal size={18} /></button>
       </div>
     </div>
   );

@@ -1,13 +1,19 @@
 import { useState } from "react";
 
-function TimelineAvatar({ activeChatUser, getAvatarColor, getInitials, senderName }) {
+function TimelineAvatar({ activeChatUser, getInitials, senderName, isAi }) {
   const [failed, setFailed] = useState(false);
   const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
   const picUrl = activeChatUser?.profilePicUrl && activeChatUser.profilePicUrl.startsWith("/uploads/") ? `${AUTH_API_URL}${activeChatUser.profilePicUrl}` : "";
 
+  if (isAi) {
+    return (
+      <div className="msg-avatar ai">🤖</div>
+    );
+  }
+
   if (picUrl && !failed) {
     return (
-      <div className="avatar" style={{ width: "36px", height: "36px", borderRadius: "50%", overflow: "hidden" }}>
+      <div className="msg-avatar" style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <img
           src={picUrl}
           alt={senderName}
@@ -19,7 +25,7 @@ function TimelineAvatar({ activeChatUser, getAvatarColor, getInitials, senderNam
   }
 
   return (
-    <div className="avatar" style={{ backgroundColor: getAvatarColor(senderName), width: "36px", height: "36px", fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%" }}>
+    <div className="msg-avatar">
       {getInitials(senderName)}
     </div>
   );
@@ -29,7 +35,6 @@ export default function MessageTimeline({
   messages,
   userId,
   isOwnMessage,
-  getAvatarColor,
   getInitials,
   toTime,
   messagesEndRef,
@@ -40,22 +45,36 @@ export default function MessageTimeline({
       {messages.map((msg, i) => {
         const own = isOwnMessage(msg);
         const senderName = msg.from || "User";
+        const isAi = msg.type === 'assistant' || msg.fromUserId === 'ai-copilot' || activeChatUser?.type === 'ai';
 
         return (
           <div key={msg.localId || i} className={`message-wrapper ${own ? "own" : ""}`}>
             {!own && (
               <TimelineAvatar
                 activeChatUser={activeChatUser}
-                getAvatarColor={getAvatarColor}
                 getInitials={getInitials}
                 senderName={senderName}
+                isAi={isAi}
               />
             )}
-            <div className="message-content">
-              <div className="message-bubble">
+            <div className="msg-content">
+              <div className="msg-header">
+                {!own && <span className="msg-author">{senderName}</span>}
+                <span className="msg-time">{toTime(msg.timestamp) || "Just now"}</span>
+              </div>
+              <div className="msg-bubble">
                 {msg.message}
               </div>
-              <span className="message-time">{toTime(msg.timestamp)}</span>
+              {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                <div className="msg-reactions">
+                  {Object.entries(msg.reactions).map(([emoji, users]) => (
+                    <div key={emoji} className="msg-reaction">
+                      <span>{emoji}</span>
+                      <span>{users.length}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         );

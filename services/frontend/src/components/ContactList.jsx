@@ -1,14 +1,20 @@
 import { useState } from "react";
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, Edit } from "lucide-react";
 
 function ContactAvatar({ contact }) {
   const [failed, setFailed] = useState(false);
   const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
   const picUrl = contact.profilePicUrl && contact.profilePicUrl.startsWith("/uploads/") ? `${AUTH_API_URL}${contact.profilePicUrl}` : "";
 
+  if (contact.type === 'ai') {
+    return (
+      <div className="contact-avatar ai">🤖</div>
+    );
+  }
+
   if (picUrl && !failed) {
     return (
-      <div className="avatar" style={{ width: "44px", height: "44px", borderRadius: "50%", overflow: "hidden" }}>
+      <div className="contact-avatar" style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <img
           src={picUrl}
           alt={contact.username}
@@ -20,7 +26,7 @@ function ContactAvatar({ contact }) {
   }
 
   return (
-    <div className="avatar" style={{ backgroundColor: "#8b5cf6", width: "44px", height: "44px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%" }}>
+    <div className="contact-avatar">
       {contact.username?.slice(0, 2).toUpperCase()}
     </div>
   );
@@ -32,22 +38,39 @@ export default function ContactList({
   contacts = [],
   onlineStatuses = {},
 }) {
+  const [activeFilter, setActiveFilter] = useState("All");
+  
   return (
     <>
-      <div className="contact-list-header">
-        <div className="search-bar-wrapper">
-          <Search size={16} className="search-icon-fixed" />
-          <input type="text" placeholder="Search Conversations" />
-          <button className="rail-button" style={{ width: "32px", height: "32px", color: "white" }}>
-            <Plus size={18} />
+      <div className="inbox-header">
+        <div className="inbox-title-row">
+          <h2>Messages</h2>
+          <button className="new-chat-btn">
+            <Edit size={16} />
           </button>
+        </div>
+        
+        <div className="search-bar">
+          <Search size={16} color="var(--text-muted)" />
+          <input type="text" placeholder="Search conversations..." />
+        </div>
+        
+        <div className="filter-tabs">
+          {["All", "DMs", "Groups", "AI", "Unread"].map(tab => (
+            <button 
+              key={tab} 
+              className={`filter-tab ${activeFilter === tab ? "active" : ""}`}
+              onClick={() => setActiveFilter(tab)}
+            >
+              {tab}
+            </button>
+          ))}
         </div>
       </div>
 
       <div className="contact-items">
-        <div style={{ padding: "0 20px 10px", fontSize: "0.75rem", opacity: 0.5, textTransform: "uppercase", fontWeight: 700 }}>Recent</div>
         {contacts.map((contact) => {
-          const isOnline = onlineStatuses[String(contact.id || contact._id)];
+          const isOnline = contact.status === "online" || onlineStatuses[String(contact.id || contact._id)];
           const isActive = activeChatUser?.id === contact.id || activeChatUser?._id === contact._id;
 
           return (
@@ -56,10 +79,22 @@ export default function ContactList({
               className={`contact-item ${isActive ? "active" : ""}`}
               onClick={() => onSelect(contact)}
             >
-              <ContactAvatar contact={contact} />
+              <div className="contact-avatar-wrapper">
+                <ContactAvatar contact={contact} />
+                <div className={`status-dot ${isOnline ? "online" : "offline"}`} />
+              </div>
+              
               <div className="contact-info">
-                <h4>{contact.username}</h4>
-                <p>{isOnline ? "Online" : "Offline"}</p>
+                <div className="contact-info-top">
+                  <h4>{contact.username}</h4>
+                  <span className="contact-time">{contact.lastActive}</span>
+                </div>
+                <div className="contact-info-bottom">
+                  <p>{contact.lastMessage}</p>
+                  {contact.unread > 0 && (
+                    <span className="unread-badge">{contact.unread}</span>
+                  )}
+                </div>
               </div>
             </div>
           );
