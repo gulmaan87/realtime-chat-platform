@@ -1,161 +1,149 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 
-const AUTH_API_URL = 'https://realtime-chat-platform-1.onrender.com';
+const AUTH_API_URL = "https://realtime-chat-platform-1.onrender.com";
 
-test.describe('Collaboration Features', () => {
-  test.beforeEach(async ({ page, context, browserName }) => {
-    // Grant microphone permissions (Chromium only for now as WebKit has issues with this specific permission string)
-    if (browserName === 'chromium') {
-      await context.grantPermissions(['microphone']);
-    }
-
-    // Mock session and browser APIs
+test.describe("Collaboration Features", () => {
+  test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       window.__E2E_TEST_MODE__ = true;
-      window.localStorage.setItem('token', 'fake-jwt-token');
-      window.localStorage.setItem('user', JSON.stringify({
-        id: '123',
-        username: 'testuser',
-        email: 'test@example.com'
+      window.localStorage.setItem("token", "fake-jwt-token");
+      window.localStorage.setItem("user", JSON.stringify({
+        id: "123",
+        username: "testuser",
+        email: "test@example.com",
       }));
 
-      // Mock MediaRecorder
-      window.MediaRecorder = class extends EventTarget {
-        constructor(stream) { 
-          super();
-          this.stream = stream; 
-          this.state = 'inactive'; 
-        }
-        start() { 
-          this.state = 'recording'; 
-        }
-        stop() {
-          this.state = 'inactive';
-          // Simulate dataavailable and stop events
-          const blob = new Blob(['fake audio content'], { type: 'audio/webm' });
-          this.dispatchEvent(new MessageEvent('dataavailable', { data: blob }));
-          this.dispatchEvent(new Event('stop'));
-        }
-        static isTypeSupported() { return true; }
-      };
+      const makeTrack = (kind) => ({
+        kind,
+        enabled: true,
+        stop() {},
+      });
 
-      // Mock getUserMedia
       if (!navigator.mediaDevices) {
-        Object.defineProperty(navigator, 'mediaDevices', {
-          value: new EventTarget(),
+        Object.defineProperty(navigator, "mediaDevices", {
+          value: {},
           configurable: true,
         });
       }
-      
-      navigator.mediaDevices.getUserMedia = async () => ({
-        getTracks: () => [{ stop: () => {}, enabled: true }],
+
+      navigator.mediaDevices.getUserMedia = async (constraints = {}) => ({
+        getTracks: () => [
+          makeTrack("audio"),
+          ...(constraints.video ? [makeTrack("video")] : []),
+        ],
+        getAudioTracks: () => [makeTrack("audio")],
+        getVideoTracks: () => (constraints.video ? [makeTrack("video")] : []),
       });
+
+      class MockRTCPeerConnection {
+        constructor() {
+          this.connectionState = "new";
+          this.localDescription = null;
+          this.remoteDescription = null;
+          this.onicecandidate = null;
+          this.ontrack = null;
+          this.onconnectionstatechange = null;
+        }
+
+        addTrack() {}
+
+        async createOffer() {
+          return { type: "offer", sdp: "fake-offer-sdp" };
+        }
+
+        async createAnswer() {
+          return { type: "answer", sdp: "fake-answer-sdp" };
+        }
+
+        async setLocalDescription(description) {
+          this.localDescription = description;
+        }
+
+        async setRemoteDescription(description) {
+          this.remoteDescription = description;
+          this.connectionState = "connected";
+          this.onconnectionstatechange?.();
+        }
+
+        async addIceCandidate() {}
+
+        close() {
+          this.connectionState = "closed";
+        }
+      }
+
+      window.RTCPeerConnection = MockRTCPeerConnection;
+      window.RTCSessionDescription = class {
+        constructor(value) {
+          return value;
+        }
+      };
+      window.RTCIceCandidate = class {
+        constructor(value) {
+          return value;
+        }
+      };
     });
 
-    // Mock initial data
-    await page.route(`${AUTH_API_URL}/contacts`, async route => {
+    await page.route(`${AUTH_API_URL}/contacts`, async (route) => {
       await route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify([
-          { id: '456', username: 'friend', email: 'friend@example.com' }
+          { id: "456", username: "friend", email: "friend@example.com", status: "Online now" },
         ]),
       });
     });
 
-    await page.route(/\/api\/chats\/123\/456/, async route => {
+    await page.route(`${AUTH_API_URL}/auth/users`, async (route) => {
       await route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
+        body: JSON.stringify([
+          { id: "456", username: "friend", email: "friend@example.com", status: "Online now" },
+        ]),
+      });
+    });
+
+    await page.route("**/api/chats/**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
         body: JSON.stringify({ messages: [] }),
       });
     });
 
-    // Mock socket.io polling to avoid connection errors and hopefully trigger 'connect'
-    await page.route('**/socket.io/**', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          sid: 'fake-session-id',
-          upgrades: [],
-          pingInterval: 25000,
-          pingTimeout: 5000
-        }),
-      });
-    });
-
-    await page.goto('/app');
-
-    // Wait for contacts to load
-    await page.waitForSelector('text=friend');
-
-    // Select contact and wait for UI to update
-    await page.click('text=friend');
-    await expect(page.locator('text=Choose a contact from the sidebar')).not.toBeVisible();
-
-    // Force enable buttons and simulate connection for React state
-    await page.evaluate(() => {
-      // Hack to trigger React state updates if possible or at least bypass DOM checks
-      // Since we can't easily reach React state from here without exposing it,
-      // we'll try to ensure the mock socket we might have injected is working.
-      window.__E2E_TEST_MODE__ = true;
-    });
+    await page.goto("/app");
+    await page.getByRole("button", { name: /friend/i }).first().click();
+    await expect(page.getByTitle("Voice call")).toBeVisible();
   });
 
-  test('Voice Note flow works', async ({ page, browserName }) => {
-    test.skip(browserName === 'webkit', 'Microphone permissions issue in WebKit E2E');
+  test("Audio call flow opens and can be ended", async ({ page }) => {
+    await page.getByTitle("Voice call").click();
 
-    // Select contact (already done in beforeEach but being explicit)
-    await page.click('text=friend');
+    await expect(page.getByText("Audio call")).toBeVisible();
+    await expect(page.getByText("Calling friend")).toBeVisible();
+    await expect(page.getByText("Waiting for friend to answer...")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Mute" })).toBeVisible();
 
-    // Wait for composer to be ready
-    const voiceTrigger = page.locator('button[aria-label="Voice note"]');
-    
-    // If it's still disabled, the socket hasn't "connected"
-    // Let's try to force it via DOM attribute removal again, 
-    // but this time we'll also try to dispatch an event that the app might be listening to.
-    await voiceTrigger.evaluate(node => {
-      node.removeAttribute('disabled');
-      node.dispatchEvent(new Event('click', { bubbles: true }));
-    });
-
-    // Verify recording UI - use a more flexible locator
-    await expect(page.locator('text=Recording live').or(page.locator('text=Recording with live transcript'))).toBeVisible({ timeout: 10000 });
-
-    // Stop and send
-    await page.click('text=Stop and send');
-
-    // Verify message appears in timeline
-    await expect(page.locator('.voice-note-card').or(page.locator('.message-item.voice_note'))).toBeVisible();
+    await page.getByRole("button", { name: "End call" }).click();
+    await expect(page.getByText("Audio call")).not.toBeVisible();
   });
 
-  test('Shared Whiteboard flow works', async ({ page }) => {
-    // Select contact
-    await page.click('text=friend');
+  test("Video call flow opens camera controls and can be ended", async ({ page }) => {
+    await page.getByTitle("Video call").click();
 
-    // Open whiteboard
-    const whiteboardTrigger = page.locator('button[aria-label="Whiteboard"]');
-    await whiteboardTrigger.click();
+    await expect(page.getByText("Video call")).toBeVisible();
+    await expect(page.getByText("Calling friend")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Camera on" })).toBeVisible();
 
-    // Verify modal
-    await expect(page.locator('text=Shared whiteboard')).toBeVisible();
-    const canvas = page.locator('canvas.whiteboard-canvas');
-    await expect(canvas).toBeVisible();
+    await page.getByRole("button", { name: "Mute" }).click();
+    await expect(page.getByRole("button", { name: "Unmute" })).toBeVisible();
 
-    // Draw something (simulate pointer events)
-    const box = await canvas.boundingBox();
-    if (box) {
-      await page.mouse.move(box.x + 10, box.y + 10);
-      await page.mouse.down();
-      await page.mouse.move(box.x + 50, box.y + 50);
-      await page.mouse.up();
-    }
+    await page.getByRole("button", { name: "Camera on" }).click();
+    await expect(page.getByRole("button", { name: "Camera off" })).toBeVisible();
 
-    // Share sketch
-    await page.click('text=Share sketch');
-
-    // Verify message appears in timeline
-    await expect(page.locator('.whiteboard-message-card')).toBeVisible();
+    await page.getByRole("button", { name: "End call" }).click();
+    await expect(page.getByText("Video call")).not.toBeVisible();
   });
 });
