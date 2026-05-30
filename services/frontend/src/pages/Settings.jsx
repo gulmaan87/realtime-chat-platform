@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import "./Settings.css";
 import { ArrowLeft, User, Upload, Save, UserCircle, MessageSquare } from "lucide-react";
+import { getSession, setSession } from "../services/session";
 
 const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
 
@@ -202,7 +203,14 @@ export default function Settings() {
       }
 
       // Update profile immediately in UI and reset broken-image state
-      setProfile((prev) => ({ ...(prev || {}), profilePicUrl: newProfilePicUrl }));
+      setProfile((prev) => {
+        const updated = { ...(prev || {}), profilePicUrl: newProfilePicUrl };
+        const session = getSession();
+        if (session && session.user) {
+          setSession({ token, user: { ...session.user, profilePicUrl: newProfilePicUrl } });
+        }
+        return updated;
+      });
       setImageLoadFailed(false);
       setError("");
       setSuccessMessage("Profile picture updated successfully");

@@ -22,23 +22,27 @@ async function getChatHistory(req, res) {
     const redisKey = `room:${roomId}`;
     const entries = await redis.lrange(redisKey, 0, 99);
     
-    // Fetch edits and deletions
+    // Fetch edits, deletions, and read status
     const edits = await redis.hgetall(`room_edits:${roomId}`) || {};
     const deletions = await redis.smembers(`room_deletions:${roomId}`) || [];
+    const readStatus = await redis.hgetall(`room_read_status:${roomId}`) || {};
 
     const messages = entries
       .map((item) => {
         try {
           const parsed = JSON.parse(item);
           if (!parsed || !parsed.localId) return parsed;
+          
+          const isRead = readStatus[parsed.localId] === "read";
+
           if (deletions.includes(parsed.localId)) {
-            return { ...parsed, isDeleted: true, message: "This message was deleted" };
+            return { ...parsed, isDeleted: true, message: "This message was deleted", status: "read" };
           }
           if (edits[parsed.localId]) {
             const editData = JSON.parse(edits[parsed.localId]);
-            return { ...parsed, message: editData.newText, isEdited: true, editHistory: editData.history };
+            return { ...parsed, message: editData.newText, isEdited: true, editHistory: editData.history, status: isRead ? "read" : "delivered" };
           }
-          return parsed;
+          return { ...parsed, status: isRead ? "read" : "delivered" };
         } catch {
           return null;
         }
