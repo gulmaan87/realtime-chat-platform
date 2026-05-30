@@ -55,6 +55,17 @@ module.exports = (io) => {
   io.on("connection", async (socket) => {
     console.log(`Socket connected: ${socket.id}, userId: ${socket.userId}`);
 
+    async function emitToUser(userId, eventName, payload) {
+      const targetUserId = userId ? String(userId) : "";
+      if (!targetUserId) return false;
+
+      const targetSocketId = await redis.get(`user:${targetUserId}`);
+      if (!targetSocketId) return false;
+
+      io.to(targetSocketId).emit(eventName, payload);
+      return true;
+    }
+
     // Register this socket for the authenticated user
     socket.on("register", async () => {
       const userId = socket.userId;
@@ -287,6 +298,77 @@ module.exports = (io) => {
       io.to(targetSocketId).emit("whiteboard_sync", {
         ...payload,
         fromUserId: String(fromUserId),
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on("call_invite", async (payload = {}) => {
+      const fromUserId = socket.userId;
+      const toUserId = payload.toUserId ? String(payload.toUserId) : "";
+      if (!fromUserId || !toUserId || !payload.callId) return;
+
+      await emitToUser(toUserId, "call_invite", {
+        callId: String(payload.callId),
+        fromUserId: String(fromUserId),
+        toUserId,
+        mode: payload.mode === "video" ? "video" : "audio",
+        fromUsername: payload.fromUsername || "",
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on("call_accept", async (payload = {}) => {
+      const fromUserId = socket.userId;
+      const toUserId = payload.toUserId ? String(payload.toUserId) : "";
+      if (!fromUserId || !toUserId || !payload.callId) return;
+
+      await emitToUser(toUserId, "call_accept", {
+        callId: String(payload.callId),
+        fromUserId: String(fromUserId),
+        toUserId,
+        mode: payload.mode === "video" ? "video" : "audio",
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on("call_decline", async (payload = {}) => {
+      const fromUserId = socket.userId;
+      const toUserId = payload.toUserId ? String(payload.toUserId) : "";
+      if (!fromUserId || !toUserId || !payload.callId) return;
+
+      await emitToUser(toUserId, "call_decline", {
+        callId: String(payload.callId),
+        fromUserId: String(fromUserId),
+        toUserId,
+        reason: payload.reason || "declined",
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on("call_end", async (payload = {}) => {
+      const fromUserId = socket.userId;
+      const toUserId = payload.toUserId ? String(payload.toUserId) : "";
+      if (!fromUserId || !toUserId || !payload.callId) return;
+
+      await emitToUser(toUserId, "call_end", {
+        callId: String(payload.callId),
+        fromUserId: String(fromUserId),
+        toUserId,
+        reason: payload.reason || "ended",
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on("webrtc_signal", async (payload = {}) => {
+      const fromUserId = socket.userId;
+      const toUserId = payload.toUserId ? String(payload.toUserId) : "";
+      if (!fromUserId || !toUserId || !payload.callId || !payload.signal) return;
+
+      await emitToUser(toUserId, "webrtc_signal", {
+        callId: String(payload.callId),
+        fromUserId: String(fromUserId),
+        toUserId,
+        signal: payload.signal,
         timestamp: Date.now(),
       });
     });
