@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AUTH_API_URL } from "../../services/serviceUrls";
 
 export default function ContactListItem({
   contact,
@@ -9,7 +10,6 @@ export default function ContactListItem({
   onSelect,
 }) {
   const [failed, setFailed] = useState(false);
-  const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
   const picUrl = contact?.profilePicUrl && contact.profilePicUrl.startsWith("/uploads/") ? `${AUTH_API_URL}${contact.profilePicUrl}` : "";
 
   return (

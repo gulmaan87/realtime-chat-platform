@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import "./Settings.css";
 import { ArrowLeft, User, Upload, Save, UserCircle, MessageSquare } from "lucide-react";
 import { getSession, setSession } from "../services/session";
-
-const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
+import { AUTH_API_URL } from "../services/serviceUrls";
 
 
 function normalizeProfilePicUrl(value) {

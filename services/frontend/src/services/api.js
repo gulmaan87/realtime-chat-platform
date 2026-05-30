@@ -1,5 +1,4 @@
-const CHAT_API_URL = "https://realtime-chat-platform-api-service.onrender.com";
-const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
+import { AUTH_API_URL, CHAT_API_URL } from "./serviceUrls";
 
 function buildHeaders(token, extraHeaders = {}) {
   return token

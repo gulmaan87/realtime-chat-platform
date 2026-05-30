@@ -1,6 +1,5 @@
 import { io } from "socket.io-client";
-
-const SOCKET_URL = "https://realtime-chat-platform-socket.onrender.com";
+import { SOCKET_URL } from "./serviceUrls";
 
 export function createSocket(token) {
   if (typeof window !== "undefined" && window.__E2E_TEST_MODE__) {

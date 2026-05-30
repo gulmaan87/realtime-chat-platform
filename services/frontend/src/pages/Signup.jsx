@@ -3,8 +3,7 @@ import { UserPlus, User, Mail, Lock, AlertCircle } from "lucide-react";
 import "./Auth.css";
 import { clearSession, setSession } from "../services/session";
 import { getGoogleCredential } from "../services/googleAuth";
-
-const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || "https://realtime-chat-platform-1.onrender.com";
+import { AUTH_API_URL } from "../services/serviceUrls";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
 export default function Signup() {
